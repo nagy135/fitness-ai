@@ -1,10 +1,11 @@
 import { ConvexError, v } from 'convex/values';
-import { normalizeSetForTrackingType, type WorkoutSet } from '@fitness/domain';
+import { normalizeSetForTrackingType } from '@fitness/domain';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
 import { eventSourceValidator, setFields } from './model';
+import { validateExerciseOrder, validateTrackedSet } from './lib/draftValidation';
 
 type ReadCtx = QueryCtx | MutationCtx;
 type Source = 'user_ui' | 'ai';
@@ -20,35 +21,6 @@ function snapshot(draft: Doc<'workoutDrafts'>) {
     exercises: draft.exercises,
     notes: draft.notes,
   };
-}
-
-function validateTrackedSet(set: WorkoutSet) {
-  const numbers = ['weightKg', 'durationSeconds', 'distanceMeters'] as const;
-  for (const field of numbers) {
-    const value = set[field];
-    if (
-      value !== undefined &&
-      (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)
-    ) {
-      throw new ConvexError(`${field} must be positive`);
-    }
-  }
-  if (set.reps !== undefined && (!Number.isInteger(set.reps) || (set.reps as number) <= 0)) {
-    throw new ConvexError('reps must be a positive integer');
-  }
-  for (const field of ['rir', 'rpe'] as const) {
-    const value = set[field];
-    if (value !== undefined && (typeof value !== 'number' || value < 0 || value > 10)) {
-      throw new ConvexError(`${field} must be between 0 and 10`);
-    }
-  }
-  if (
-    !(['weightKg', 'reps', 'durationSeconds', 'distanceMeters'] as const).some(
-      (field) => set[field] !== undefined,
-    )
-  ) {
-    throw new ConvexError('A set needs at least one tracked value');
-  }
 }
 
 async function currentForUser(ctx: ReadCtx, userId: Id<'userProfiles'>) {
@@ -361,8 +333,10 @@ export const reorderExercises = mutation({
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
     const draft = await requireCurrent(ctx, user._id);
-    if (new Set(args.orderedRowIds).size !== draft.exercises.length)
-      throw new ConvexError('Order must include every row once');
+    validateExerciseOrder(
+      draft.exercises.map((row) => row.rowId),
+      args.orderedRowIds,
+    );
     const byId = new Map(draft.exercises.map((row) => [row.rowId, row]));
     const exercises = args.orderedRowIds.map((rowId) => byId.get(rowId));
     if (exercises.some((row) => !row)) throw new ConvexError('Unknown row in order');

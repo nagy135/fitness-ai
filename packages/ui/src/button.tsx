@@ -3,8 +3,9 @@ import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-n
 import { cva, type VariantProps } from 'class-variance-authority';
 import { useColorScheme } from 'nativewind';
 import { cn } from './cn';
+import themeColors from './theme.json';
 
-const buttonVariants = cva('h-12 flex-row items-center justify-center rounded-2xl px-5', {
+const buttonVariants = cva('min-h-12 py-3 flex-row items-center justify-center rounded-2xl px-5', {
   variants: {
     variant: {
       primary: 'bg-accent active:opacity-80 dark:bg-accent-dark',
@@ -36,17 +37,20 @@ export function Button({
 }: ButtonProps) {
   const lightText = variant === 'secondary' || variant === 'ghost';
   const { colorScheme } = useColorScheme();
-  const foregroundColor = colorScheme === 'dark' ? '#F5F7F5' : '#172019';
+  const colors = themeColors[colorScheme === 'dark' ? 'dark' : 'light'];
   return (
     <Pressable
       accessibilityRole="button"
       className={cn(buttonVariants({ variant }), (disabled || loading) && 'opacity-50', className)}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       disabled={disabled || loading}
       {...props}
     >
       {loading ? (
         <ActivityIndicator
-          color={lightText ? foregroundColor : variant === 'destructive' ? '#FFFFFF' : '#0B0D0F'}
+          color={
+            lightText ? colors.text : variant === 'destructive' ? colors.canvas : colors.accentInk
+          }
         />
       ) : typeof children === 'string' ? (
         <Text
@@ -55,8 +59,8 @@ export function Button({
             lightText
               ? 'text-ink dark:text-ink-dark'
               : variant === 'destructive'
-                ? 'text-white'
-                : 'text-accent-ink',
+                ? 'text-white dark:text-canvas-dark'
+                : 'text-accent-ink dark:text-accent-ink-dark',
             textClassName,
           )}
         >

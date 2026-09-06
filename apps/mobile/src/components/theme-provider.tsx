@@ -3,24 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { useColorScheme } from 'nativewind';
 
-export const themeColors = {
-  light: {
-    canvas: '#F5F7F2',
-    panel: '#FFFFFF',
-    text: '#172019',
-    muted: '#69746D',
-    line: '#DDE3DE',
-    accent: '#65A30D',
-  },
-  dark: {
-    canvas: '#0B0D0F',
-    panel: '#14181B',
-    text: '#F5F7F5',
-    muted: '#84908A',
-    line: '#29302C',
-    accent: '#B9F34A',
-  },
-} as const;
+import { themeColors } from '@fitness/ui';
+export { themeColors } from '@fitness/ui';
 
 const storageKey = 'fitness-ai-color-scheme';
 

@@ -6,8 +6,10 @@ export type FitnessMode = 'workout' | 'analysis';
 export function ModeSwitch({
   mode,
   onChange,
+  disabled = false,
 }: {
   mode: FitnessMode;
+  disabled?: boolean;
   onChange: (mode: FitnessMode) => void;
 }) {
   return (
@@ -18,7 +20,8 @@ export function ModeSwitch({
           <Pressable
             key={option}
             accessibilityRole="tab"
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled }}
+            disabled={disabled}
             className={cn(
               'flex-1 items-center rounded-xl py-3',
               selected && 'bg-accent dark:bg-accent-dark',
@@ -27,11 +30,13 @@ export function ModeSwitch({
           >
             <Text
               className={cn(
-                'text-xs font-black tracking-[2px]',
-                selected ? 'text-accent-ink' : 'text-muted dark:text-muted-dark',
+                'text-sm font-semibold',
+                selected
+                  ? 'text-accent-ink dark:text-accent-ink-dark'
+                  : 'text-muted dark:text-muted-dark',
               )}
             >
-              {option.toUpperCase()}
+              {option === 'workout' ? 'Workout' : 'Analysis'}
             </Text>
           </Pressable>
         );

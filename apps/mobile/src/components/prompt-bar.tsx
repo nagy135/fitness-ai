@@ -1,63 +1,63 @@
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
-import { Send } from 'lucide-react-native';
+import { useRef } from 'react';
+import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
+import { ArrowUp } from 'lucide-react-native';
 import { useAppTheme } from './theme-provider';
 
 export function PromptBar({
   placeholder,
   processing,
   onSubmit,
+  value,
+  onChangeText,
 }: {
   placeholder: string;
   processing: boolean;
-  onSubmit: (text: string) => Promise<void>;
+  value: string;
+  onChangeText: (text: string) => void;
+  onSubmit: (text: string) => Promise<boolean>;
 }) {
-  const [value, setValue] = useState('');
   const submitting = useRef(false);
   const { colors } = useAppTheme();
   async function submit() {
     const text = value.trim();
     if (!text || processing || submitting.current) return;
     submitting.current = true;
-    setValue('');
     try {
-      await onSubmit(text);
+      if (await onSubmit(text)) onChangeText('');
     } finally {
       submitting.current = false;
     }
   }
+  const disabled = !value.trim() || processing;
   return (
-    <View className="border-t border-line bg-canvas px-4 pb-3 pt-3 dark:border-line-dark dark:bg-canvas-dark">
-      <View className="min-h-14 flex-row items-end rounded-3xl border border-line bg-panel p-2 pl-4 dark:border-line-dark dark:bg-panel-dark">
+    <View className="border-t border-line bg-canvas px-5 pb-4 pt-3 dark:border-line-dark dark:bg-canvas-dark">
+      <View className="min-h-16 flex-row items-end rounded-2xl border border-line bg-panel p-2 pl-4 dark:border-line-dark dark:bg-panel-dark">
         <TextInput
-          className="max-h-28 flex-1 py-2 text-base text-ink dark:text-ink-dark"
+          accessibilityLabel={placeholder}
+          className="max-h-28 min-h-11 flex-1 py-3 text-base text-ink dark:text-ink-dark"
           editable={!processing}
           multiline
-          onChangeText={setValue}
-          onKeyPress={(event) => {
-            if (Platform.OS === 'web' && event.nativeEvent.key === 'Enter') {
-              event.preventDefault();
-              void submit();
-            }
-          }}
-          onSubmitEditing={submit}
-          placeholder={processing ? 'Processing…' : placeholder}
+          onChangeText={onChangeText}
+          onSubmitEditing={() => void submit()}
+          placeholder={processing ? 'Working on it…' : placeholder}
           placeholderTextColor={colors.muted}
           returnKeyType="send"
           submitBehavior="submit"
           value={value}
         />
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Send prompt"
+          accessibilityState={{ disabled, busy: processing }}
           testID="send-prompt"
-          className="h-10 w-10 items-center justify-center rounded-full bg-accent dark:bg-accent-dark"
-          disabled={!value.trim() || processing}
-          onPress={submit}
+          className={`h-11 w-11 items-center justify-center rounded-xl bg-accent dark:bg-accent-dark ${disabled && !processing ? 'opacity-40' : ''}`}
+          disabled={disabled}
+          onPress={() => void submit()}
         >
           {processing ? (
-            <ActivityIndicator color="#0B0D0F" size="small" />
+            <ActivityIndicator color={colors.accentInk} size="small" />
           ) : (
-            <Send color="#0B0D0F" size={18} />
+            <ArrowUp color={colors.accentInk} size={22} />
           )}
         </Pressable>
       </View>

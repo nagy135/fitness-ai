@@ -1,5 +1,13 @@
 import type { PropsWithChildren } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 
 export interface DialogProps extends PropsWithChildren {
   visible: boolean;
@@ -11,15 +19,28 @@ export interface DialogProps extends PropsWithChildren {
 export function Dialog({ visible, title, description, onRequestClose, children }: DialogProps) {
   return (
     <Modal
-      animationType="fade"
+      animationType="none"
       onRequestClose={onRequestClose}
       presentationStyle="overFullScreen"
       transparent
       visible={visible}
     >
-      <View className="flex-1 justify-end bg-black/70 px-4 pb-8">
-        <Pressable className="absolute inset-0" onPress={onRequestClose} />
-        <View className="rounded-[28px] border border-line bg-panel p-6 dark:border-line-dark dark:bg-panel-dark">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1 justify-center bg-black/50 px-5 py-10"
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close dialog"
+          className="absolute inset-0"
+          onPress={onRequestClose}
+        />
+        <ScrollView
+          accessibilityViewIsModal
+          className="mx-auto max-h-full w-full max-w-md grow-0 rounded-3xl border border-line bg-panel dark:border-line-dark dark:bg-panel-dark"
+          contentContainerClassName="p-6"
+          keyboardShouldPersistTaps="handled"
+        >
           <Text className="text-2xl font-bold text-ink dark:text-ink-dark">{title}</Text>
           {description ? (
             <Text className="mt-2 text-base leading-6 text-muted dark:text-muted-dark">
@@ -27,8 +48,8 @@ export function Dialog({ visible, title, description, onRequestClose, children }
             </Text>
           ) : null}
           <View className="mt-6 gap-3">{children}</View>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
