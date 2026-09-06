@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "baseUrl": ".",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "ignoreDeprecations": "6.0",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "paths": {
+      "@fitness/domain": ["packages/domain/src/index.ts"],
+      "@fitness/ai": ["packages/ai/src/index.ts"],
+      "@fitness/ui": ["packages/ui/src/index.ts"],
+      "@fitness/convex-api": ["convex/_generated/api.ts"]
+    }
+  }
+}

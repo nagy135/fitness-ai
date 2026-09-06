@@ -1,0 +1,16 @@
+.direnv/
+.env
+.env.local
+.nx/
+.pnpm-home/
+.expo/
+node_modules/
+dist/
+coverage/
+convex/_generated/
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/expo-env.d.ts
+*.tsbuildinfo
+.DS_Store

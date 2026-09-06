@@ -1,0 +1,19 @@
+{
+  "name": "@fitness/convex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./_generated/api.js",
+    "./data-model": "./_generated/dataModel.js"
+  },
+  "dependencies": {
+    "@better-auth/expo": "~1.6.15",
+    "@convex-dev/better-auth": "0.12.5",
+    "@fitness/ai": "workspace:*",
+    "@fitness/domain": "workspace:*",
+    "ai": "^7.0.84",
+    "better-auth": "~1.6.15",
+    "convex": "^1.45.0"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "mobile",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/mobile/src",
+  "targets": {
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile",
+        "envFile": ".env.local",
+        "command": "pnpm expo start"
+      }
+    },
+    "android": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile",
+        "envFile": ".env.local",
+        "command": "pnpm expo start --android"
+      }
+    },
+    "ios": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile",
+        "envFile": ".env.local",
+        "command": "pnpm expo start --ios"
+      }
+    },
+    "web": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile",
+        "envFile": ".env.local",
+        "command": "pnpm expo start --web"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/mobile", "command": "pnpm expo lint" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/mobile", "command": "pnpm tsc --noEmit" }
+    }
+  },
+  "tags": ["scope:mobile", "type:app"]
+}

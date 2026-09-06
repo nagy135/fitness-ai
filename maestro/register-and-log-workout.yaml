@@ -1,0 +1,35 @@
+appId: com.fitnessai.app
+---
+- launchApp
+- tapOn: Register
+- tapOn: Name
+- inputText: Maestro User
+- tapOn: Email
+- inputText: maestro@example.com
+- tapOn: Password
+- inputText: testing-password-123
+- tapOn: Register
+- assertVisible: Today
+- tapOn: What did you do?
+- inputText: bench 80kg 8 reps
+- tapOn:
+    id: send-prompt
+- assertVisible: Bench Press
+- assertVisible: '80'
+- assertVisible: '8'
+- tapOn: What did you do?
+- inputText: another one 85 for 6
+- tapOn:
+    id: send-prompt
+- assertVisible: '85'
+- assertVisible: '6'
+- tapOn: ANALYSIS
+- assertVisible: Finish today’s workout?
+- tapOn: Confirm workout
+- assertVisible: Your training
+- tapOn: Ask about your training…
+- inputText: what was my last bench workout?
+- tapOn:
+    id: send-prompt
+- assertVisible: 80
+- assertVisible: 85

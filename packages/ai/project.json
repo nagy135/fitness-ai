@@ -1,0 +1,17 @@
+{
+  "name": "ai",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/ai/src",
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "vitest run packages/ai" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "tsc -p packages/ai/tsconfig.json --noEmit" }
+    }
+  },
+  "tags": ["scope:shared", "type:ai"]
+}
