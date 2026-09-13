@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { useColorScheme } from 'nativewind';
 import { cn } from './cn';
-import themeColors from './theme.json';
+import { useThemeColors } from './theme-context';
 
 const buttonVariants = cva('min-h-12 py-3 flex-row items-center justify-center rounded-full px-5', {
   variants: {
@@ -36,8 +35,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const lightText = variant === 'secondary' || variant === 'ghost';
-  const { colorScheme } = useColorScheme();
-  const colors = themeColors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const colors = useThemeColors();
   return (
     <Pressable
       accessibilityRole="button"

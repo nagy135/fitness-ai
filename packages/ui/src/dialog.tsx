@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 
+import { useThemeVariables } from './theme-context';
+
 export interface DialogProps extends PropsWithChildren {
   visible: boolean;
   title: string;
@@ -25,6 +27,7 @@ export function Dialog({
   children,
   headerAction,
 }: DialogProps) {
+  const variables = useThemeVariables();
   return (
     <Modal
       animationType="none"
@@ -37,7 +40,7 @@ export function Dialog({
         behavior={Platform.select({ ios: 'padding', android: 'height' })}
         className="justify-center bg-black/50 px-5 py-10"
         // Keep flex native so Android keyboard avoidance can override it.
-        style={{ flex: 1 }}
+        style={[variables, { flex: 1 }]}
       >
         <Pressable
           accessibilityRole="button"

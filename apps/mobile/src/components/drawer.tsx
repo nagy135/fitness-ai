@@ -2,7 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
-import { IconButton } from '@fitness/ui';
+import { IconButton, useThemeVariables } from '@fitness/ui';
 import { useAppTheme } from './theme-provider';
 import { ThemeToggle } from './theme-toggle';
 import { DisplayText } from './display-text';
@@ -15,10 +15,11 @@ export function Drawer({
   children,
 }: PropsWithChildren<{ title: string; subtitle: string; visible: boolean; onClose: () => void }>) {
   const { colors } = useAppTheme();
+  const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
   return (
     <Modal animationType="none" onRequestClose={onClose} transparent visible={visible}>
-      <View className="flex-1 flex-row justify-end bg-black/50">
+      <View style={variables} className="flex-1 flex-row justify-end bg-black/50">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Close ${title.toLowerCase()}`}

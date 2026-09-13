@@ -9,6 +9,8 @@ import { DisplayText } from '@/components/display-text';
 import { ErrorNotice } from '@/components/error-notice';
 import { useAppTheme } from '@/components/theme-provider';
 
+import { ThemeSettings } from './theme-settings';
+
 export default function AccountScreen() {
   const { colors } = useAppTheme();
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ export default function AccountScreen() {
             <ChevronRight color={colors.muted} size={20} />
           </Pressable>
         </View>
+        <ThemeSettings />
         <View className="mt-10">
           <Text className="mb-3 text-lg font-semibold text-ink dark:text-ink-dark">Account</Text>
           <Text className="mb-4 text-sm leading-5 text-muted dark:text-muted-dark">

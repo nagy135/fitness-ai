@@ -1,7 +1,6 @@
 import { Text, TextInput, View, type TextInputProps } from 'react-native';
-import { useColorScheme } from 'nativewind';
 import { cn } from './cn';
-import themeColors from './theme.json';
+import { useThemeColors } from './theme-context';
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -10,7 +9,7 @@ export interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, className, ...props }: InputProps) {
-  const { colorScheme } = useColorScheme();
+  const colors = useThemeColors();
   return (
     <View className="gap-2">
       {label ? (
@@ -23,7 +22,7 @@ export function Input({ label, error, className, ...props }: InputProps) {
           error && 'border-danger',
           className,
         )}
-        placeholderTextColor={themeColors[colorScheme === 'dark' ? 'dark' : 'light'].muted}
+        placeholderTextColor={colors.muted}
         {...props}
       />
       {error ? <Text className="text-xs text-danger">{error}</Text> : null}

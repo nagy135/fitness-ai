@@ -6,3 +6,5 @@ export * from './input';
 export * from './mode-switch';
 export { default as themeColors } from './theme.json';
 export * from './icon-button';
+export * from './themes';
+export * from './theme-context';

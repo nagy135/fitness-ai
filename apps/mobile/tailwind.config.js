@@ -7,9 +7,9 @@ module.exports = {
     extend: {
       colors: Object.fromEntries(
         Object.entries(require('../../packages/ui/src/theme.json')).flatMap(([mode, colors]) =>
-          Object.entries(colors).map(([name, value]) => [
+          Object.keys(colors).map((name) => [
             `${{ text: 'ink', accentInk: 'accent-ink', highlightInk: 'highlight-ink' }[name] ?? name}${mode === 'dark' ? '-dark' : ''}`,
-            value,
+            `rgb(var(--color-${name}) / <alpha-value>)`,
           ]),
         ),
       ),
