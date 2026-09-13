@@ -4,6 +4,10 @@
     "appVersionSource": "local"
   },
   "build": {
+    "development": {
+      "extends": "preview",
+      "developmentClient": true
+    },
     "preview": {
       "distribution": "internal",
       "environment": "preview",

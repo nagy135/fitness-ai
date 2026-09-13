@@ -28,6 +28,14 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Fitness AI to use your microphone to dictate workout prompts.",
+          "speechRecognitionPermission": "Allow Fitness AI to turn your speech into editable prompt text."
+        }
+      ],
       [
         "expo-splash-screen",
         {

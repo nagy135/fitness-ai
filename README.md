@@ -195,6 +195,55 @@ For ordinary Expo Go usage on a phone, `SITE_URL=http://localhost:8081` can rema
 
 ## Build an installable Android APK
 
+### Voice input
+
+The prompt microphone uses `expo-speech-recognition` and the device's preferred
+language. Tap it, speak a short workout prompt, then tap stop (or pause until
+recognition ends). Review/edit the transcript and tap Send. Existing prompt text
+is preserved; another recording appends to it. Recording ends after at most one
+minute and is canceled when leaving the screen or putting the app in the background.
+
+Voice input requires a fresh native app build with microphone/speech permissions;
+it cannot be added to an existing APK through a JavaScript update. Build the
+preview APK below, or run `nix develop -c pnpm --filter mobile exec expo run:ios`
+or `expo run:android` with the corresponding local native toolchain installed.
+Expo Go still supports typing and keyboard dictation, but its prompt microphone
+cannot load this custom native module. On web, voice input requires a browser
+with speech recognition support and a secure context (HTTPS or localhost).
+
+The app does not save audio. The operating system/browser speech service may
+process audio online; offline availability and accuracy depend on the device
+and language. Transcribed text reaches the workout/analysis AI only after Send.
+
+Device smoke check after rebuilding: allow permissions, dictate reps and weights
+into both modes, stop and edit before sending, append to existing text, deny
+permissions, and leave the screen/background the app while recording. Confirm
+that recording stops and late results never replace another mode's prompt.
+
+### Development build with voice input
+
+Install the custom development app once to use the prompt microphone while
+keeping live JavaScript reloads. EAS builds it in the cloud, so no local Android
+SDK or Xcode is required for the Android APK:
+
+```bash
+nix develop -c sh -c 'cd apps/mobile && npx eas-cli@latest build --platform android --profile development'
+```
+
+Install the resulting APK on your phone. Then start Metro with the production
+backend and open **Fitness AI** instead of Expo Go:
+
+```bash
+EXPO_PUBLIC_CONVEX_URL=https://fitness-ai.infiniter.tech \
+EXPO_PUBLIC_CONVEX_SITE_URL=https://fitness-ai-auth.infiniter.tech \
+nix develop -c pnpm --dir apps/mobile exec expo start --dev-client --lan --clear
+```
+
+Scan the development server QR code to connect. Rebuild this app after changing
+native dependencies or permissions; ordinary TypeScript edits reload immediately.
+
+### Preview build
+
 The `preview` EAS profile produces a signed APK with the JavaScript bundle included,
 so Metro does not need to run. Configure `EXPO_PUBLIC_CONVEX_URL` and
 `EXPO_PUBLIC_CONVEX_SITE_URL` in the EAS `preview` environment before building.

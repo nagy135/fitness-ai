@@ -169,6 +169,8 @@ export default function HomeScreen() {
       ) : null}
       <ErrorNotice message={session.error} />
       <PromptBar
+        key={mode}
+        voiceEnabled={!conversationOpen && !historyOpen}
         value={prompts[mode]}
         onChangeText={setPrompt}
         onSubmit={session.submitPrompt}
