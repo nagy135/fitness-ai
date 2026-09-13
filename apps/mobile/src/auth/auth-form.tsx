@@ -1,20 +1,44 @@
-import { useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Button, Input } from '@fitness/ui';
 import { authClient } from './client';
 import { Screen } from '@/components/screen';
-import { Dumbbell } from 'lucide-react-native';
-import { useAppTheme } from '@/components/theme-provider';
+import { DisplayText } from '@/components/display-text';
+import { WeightPlates } from '@/components/weight-plates';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
-  const { colors } = useAppTheme();
   const submitting = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(() => Keyboard.isVisible());
+  const scrollView = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  function keepFocusedInputVisible() {
+    if (!keyboardVisible || Platform.OS === 'web') return;
+    const input = TextInput.State.currentlyFocusedInput();
+    if (input) {
+      scrollView.current?.scrollResponderScrollNativeHandleToKeyboard(input, 16, true);
+    }
+  }
 
   async function submit() {
     if (
@@ -58,23 +82,33 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <Screen>
       <ScrollView
+        ref={scrollView}
+        style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="grow justify-center px-6 py-10"
+        keyboardDismissMode="on-drag"
+        onLayout={keepFocusedInputVisible}
+        onContentSizeChange={keepFocusedInputVisible}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: keyboardVisible ? 'flex-start' : 'center',
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: 16,
+        }}
       >
         <View className="mx-auto w-full max-w-md">
-          <View className="mb-10 flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-soft dark:bg-soft-dark">
-              <Dumbbell size={26} color={colors.accent} />
+          {!keyboardVisible ? (
+            <View className="mb-6 flex-row items-center justify-between rounded-[24px] bg-highlight px-5 py-5">
+              <DisplayText className="flex-1 text-[52px] leading-[54px] text-highlight-ink dark:text-highlight-ink">
+                Every rep{'\n'}counts.
+              </DisplayText>
+              <WeightPlates size={112} />
             </View>
-            <Text className="text-xl font-bold text-ink dark:text-ink-dark">Fitness AI</Text>
-          </View>
-          <Text className="mt-3 text-4xl font-black text-ink dark:text-ink-dark">
-            {registering ? 'Create your account' : 'Welcome back'}
-          </Text>
-          <Text className="mb-8 mt-3 text-base leading-6 text-muted dark:text-muted-dark">
-            A place for every set. Log your workouts and see how far you’ve come.
-          </Text>
-          <View className="gap-4">
+          ) : null}
+          <DisplayText className="mb-4 text-[36px] leading-10">
+            {registering ? 'Create your account' : 'Welcome back.'}
+          </DisplayText>
+          <View className="gap-3">
             {registering ? (
               <Input autoCapitalize="words" label="Name" onChangeText={setName} value={name} />
             ) : null}
@@ -107,7 +141,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               {registering ? 'Register' : 'Log in'}
             </Button>
           </View>
-          <Text className="mt-6 text-center text-sm text-muted dark:text-muted-dark">
+          <Text className="mt-4 text-center text-sm text-muted dark:text-muted-dark">
             {registering ? 'Already have an account? ' : 'New here? '}
             <Link
               className="font-bold text-accent dark:text-accent-dark"

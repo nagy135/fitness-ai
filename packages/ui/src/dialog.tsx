@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -13,10 +13,18 @@ export interface DialogProps extends PropsWithChildren {
   visible: boolean;
   title: string;
   description?: string;
+  headerAction?: ReactNode;
   onRequestClose: () => void;
 }
 
-export function Dialog({ visible, title, description, onRequestClose, children }: DialogProps) {
+export function Dialog({
+  visible,
+  title,
+  description,
+  onRequestClose,
+  children,
+  headerAction,
+}: DialogProps) {
   return (
     <Modal
       animationType="none"
@@ -26,8 +34,10 @@ export function Dialog({ visible, title, description, onRequestClose, children }
       visible={visible}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1 justify-center bg-black/50 px-5 py-10"
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
+        className="justify-center bg-black/50 px-5 py-10"
+        // Keep flex native so Android keyboard avoidance can override it.
+        style={{ flex: 1 }}
       >
         <Pressable
           accessibilityRole="button"
@@ -41,7 +51,10 @@ export function Dialog({ visible, title, description, onRequestClose, children }
           contentContainerClassName="p-6"
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-2xl font-bold text-ink dark:text-ink-dark">{title}</Text>
+          <View className="flex-row flex-wrap items-center justify-between gap-3">
+            <Text className="text-2xl font-bold text-ink dark:text-ink-dark">{title}</Text>
+            {headerAction}
+          </View>
           {description ? (
             <Text className="mt-2 text-base leading-6 text-muted dark:text-muted-dark">
               {description}

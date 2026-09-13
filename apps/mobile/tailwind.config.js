@@ -8,7 +8,7 @@ module.exports = {
       colors: Object.fromEntries(
         Object.entries(require('../../packages/ui/src/theme.json')).flatMap(([mode, colors]) =>
           Object.entries(colors).map(([name, value]) => [
-            `${{ text: 'ink', accentInk: 'accent-ink' }[name] ?? name}${mode === 'dark' ? '-dark' : ''}`,
+            `${{ text: 'ink', accentInk: 'accent-ink', highlightInk: 'highlight-ink' }[name] ?? name}${mode === 'dark' ? '-dark' : ''}`,
             value,
           ]),
         ),

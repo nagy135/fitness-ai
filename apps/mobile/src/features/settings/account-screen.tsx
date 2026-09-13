@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Dumbbell, Moon, Sun } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Dumbbell } from 'lucide-react-native';
 import { Button, IconButton } from '@fitness/ui';
 import { authClient } from '@/auth/client';
 import { Screen } from '@/components/screen';
+import { DisplayText } from '@/components/display-text';
 import { ErrorNotice } from '@/components/error-notice';
 import { useAppTheme } from '@/components/theme-provider';
 
 export default function AccountScreen() {
-  const { colors, isDark, toggleTheme } = useAppTheme();
+  const { colors } = useAppTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const locked = useRef(false);
@@ -30,21 +31,22 @@ export default function AccountScreen() {
     }
   }
   return (
-    <Screen>
-      <ScrollView contentContainerClassName="grow px-5 pb-6 pt-4">
+    <Screen
+      headerLeft={
         <IconButton
           accessibilityLabel="Back to workout"
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         >
           <ArrowLeft color={colors.text} size={22} />
         </IconButton>
-        <Text className="mb-2 mt-6 text-[32px] font-bold tracking-tight text-ink dark:text-ink-dark">
-          Settings
-        </Text>
+      }
+    >
+      <ScrollView contentContainerClassName="grow px-5 pb-6 pt-2">
+        <DisplayText className="mb-2 text-[56px] leading-[64px]">Your space.</DisplayText>
         <Text className="mb-8 text-base text-muted dark:text-muted-dark">
-          Make this space yours.
+          Your exercises. Your way of training.
         </Text>
-        <View className="overflow-hidden rounded-2xl border border-line bg-panel dark:border-line-dark dark:bg-panel-dark">
+        <View className="overflow-hidden rounded-[24px] bg-soft dark:bg-soft-dark">
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push('/settings/exercises')}
@@ -60,28 +62,6 @@ export default function AccountScreen() {
               </Text>
             </View>
             <ChevronRight color={colors.muted} size={20} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="Dark mode"
-            accessibilityState={{ checked: isDark }}
-            onPress={toggleTheme}
-            className="min-h-20 flex-row items-center gap-4 border-t border-line px-4 py-5 dark:border-line-dark"
-          >
-            {isDark ? (
-              <Moon color={colors.accent} size={23} />
-            ) : (
-              <Sun color={colors.accent} size={23} />
-            )}
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-ink dark:text-ink-dark">
-                Appearance
-              </Text>
-              <Text className="mt-1 text-sm text-muted dark:text-muted-dark">
-                {isDark ? 'Dark mode' : 'Light mode'}
-              </Text>
-            </View>
-            <Text className="text-sm font-semibold text-accent dark:text-accent-dark">Change</Text>
           </Pressable>
         </View>
         <View className="mt-10">

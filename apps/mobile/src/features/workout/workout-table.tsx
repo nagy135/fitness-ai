@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { ChevronDown, ChevronUp, Dumbbell, Trash2 } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react-native';
 import { Button, IconButton } from '@fitness/ui';
 import type { WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
+import { DisplayText } from '@/components/display-text';
 
 type DraftSet = WorkoutSet & { setId: string };
 interface DraftExercise {
@@ -46,12 +47,9 @@ export function WorkoutTable({
     >
       {exercises.length === 0 ? (
         <View className="flex-1 justify-center py-10">
-          <View className="mb-6 h-16 w-16 items-center justify-center rounded-2xl bg-soft dark:bg-soft-dark">
-            <Dumbbell color={colors.accent} size={30} strokeWidth={1.6} />
-          </View>
-          <Text className="text-[32px] font-bold leading-10 tracking-tight text-ink dark:text-ink-dark">
-            One set at a time.
-          </Text>
+          <DisplayText className="text-[40px] leading-[46px]">
+            Less typing. More training.
+          </DisplayText>
           <Text className="mt-3 max-w-md text-base leading-6 text-muted dark:text-muted-dark">
             Tell me what you lifted, ran, or held. Your workout takes shape here.
           </Text>
@@ -73,14 +71,14 @@ export function WorkoutTable({
         exercises.map((exercise) => (
           <View key={exercise.rowId} className="mb-6">
             <View className="mb-3 flex-row items-center justify-between gap-3">
-              <Text className="flex-1 text-xl font-bold tracking-tight text-ink dark:text-ink-dark">
+              <Text className="flex-1 text-xl font-semibold tracking-tight text-ink dark:text-ink-dark">
                 {exercise.name}
               </Text>
               <Text className="text-sm text-muted dark:text-muted-dark">
                 {exercise.sets.length} {exercise.sets.length === 1 ? 'set' : 'sets'}
               </Text>
             </View>
-            <View className="overflow-hidden rounded-2xl border border-line bg-panel dark:border-line-dark dark:bg-panel-dark">
+            <View className="overflow-hidden rounded-[20px] bg-panel dark:bg-panel-dark">
               {exercise.sets.map((set, index) => {
                 const open = expanded === set.setId;
                 return (
@@ -93,17 +91,19 @@ export function WorkoutTable({
                       accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
                       accessibilityState={{ expanded: open }}
                       onPress={() => setExpanded(open ? undefined : set.setId)}
-                      className="min-h-16 flex-row items-center gap-3 px-4 py-4 active:bg-soft dark:active:bg-soft-dark"
+                      className="min-h-[68px] flex-row items-center gap-3 px-4 py-3 active:bg-soft dark:active:bg-soft-dark"
                     >
-                      <Text className="w-10 text-sm text-muted dark:text-muted-dark">
-                        Set {index + 1}
-                      </Text>
-                      <Text
-                        className="flex-1 text-base font-semibold text-ink dark:text-ink-dark"
+                      <View className="h-8 w-8 items-center justify-center rounded-full bg-soft dark:bg-soft-dark">
+                        <Text className="text-sm font-semibold text-muted dark:text-muted-dark">
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <DisplayText
+                        className="flex-1 text-[28px] leading-9"
                         style={{ fontVariant: ['tabular-nums'] }}
                       >
                         {formatSet(set)}
-                      </Text>
+                      </DisplayText>
                       {open ? (
                         <ChevronUp size={18} color={colors.muted} />
                       ) : (

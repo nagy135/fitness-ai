@@ -1,24 +1,28 @@
 {
   "light": {
-    "canvas": "#F3F5F9",
+    "canvas": "#F0F2ED",
     "panel": "#FFFFFF",
-    "text": "#151E30",
-    "muted": "#606C80",
-    "line": "#DDE3ED",
-    "accent": "#315BD6",
+    "text": "#17322E",
+    "muted": "#65746B",
+    "line": "#D8DFD6",
+    "accent": "#173C37",
     "accentInk": "#FFFFFF",
-    "soft": "#E7EDFF",
-    "danger": "#B42332"
+    "soft": "#E1E8DC",
+    "danger": "#B42332",
+    "highlight": "#FFB38C",
+    "highlightInk": "#17322E"
   },
   "dark": {
-    "canvas": "#101725",
-    "panel": "#1A2436",
-    "text": "#F1F4FA",
-    "muted": "#A3AEC2",
-    "line": "#303D53",
-    "accent": "#A9BEFF",
-    "accentInk": "#15234A",
-    "soft": "#25365B",
-    "danger": "#FF9BA7"
+    "canvas": "#102622",
+    "panel": "#1B3630",
+    "text": "#F3F4EB",
+    "muted": "#ABBDB1",
+    "line": "#355248",
+    "accent": "#FFB38C",
+    "accentInk": "#17322E",
+    "soft": "#294B40",
+    "danger": "#FFA4AF",
+    "highlight": "#FFB38C",
+    "highlightInk": "#17322E"
   }
 }

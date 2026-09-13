@@ -13,7 +13,7 @@ export function ModeSwitch({
   onChange: (mode: FitnessMode) => void;
 }) {
   return (
-    <View className="flex-row rounded-2xl border border-line bg-panel p-1 dark:border-line-dark dark:bg-panel-dark">
+    <View className="flex-row gap-7 border-b border-line dark:border-line-dark">
       {(['workout', 'analysis'] as const).map((option) => {
         const selected = option === mode;
         return (
@@ -23,17 +23,15 @@ export function ModeSwitch({
             accessibilityState={{ selected, disabled }}
             disabled={disabled}
             className={cn(
-              'flex-1 items-center rounded-xl py-3',
-              selected && 'bg-accent dark:bg-accent-dark',
+              'min-h-12 flex-1 items-center border-b-[3px] py-3',
+              selected ? 'border-accent dark:border-accent-dark' : 'border-transparent',
             )}
             onPress={() => onChange(option)}
           >
             <Text
               className={cn(
-                'text-sm font-semibold',
-                selected
-                  ? 'text-accent-ink dark:text-accent-ink-dark'
-                  : 'text-muted dark:text-muted-dark',
+                'text-base font-bold',
+                selected ? 'text-accent dark:text-accent-dark' : 'text-muted dark:text-muted-dark',
               )}
             >
               {option === 'workout' ? 'Workout' : 'Analysis'}

@@ -193,6 +193,40 @@ nix develop -c ./scripts/convex-self-hosted.sh env set SITE_URL http://<mac-ip>:
 
 For ordinary Expo Go usage on a phone, `SITE_URL=http://localhost:8081` can remain unchanged because native authentication uses the `fitai://`/`exp://` flow rather than the browser cross-domain flow.
 
+## Build an installable Android APK
+
+The `preview` EAS profile produces a signed APK with the JavaScript bundle included,
+so Metro does not need to run. Configure `EXPO_PUBLIC_CONVEX_URL` and
+`EXPO_PUBLIC_CONVEX_SITE_URL` in the EAS `preview` environment before building.
+Use the deployed Convex API and site/auth URLs, respectively. The phone must be
+able to reach those endpoints. Android HTTP traffic is enabled only when a
+configured endpoint uses `http://`.
+
+The current nixpi deployment uses `https://fitness-ai.infiniter.tech` for the
+API and `https://fitness-ai-auth.infiniter.tech` for auth. Both are configured
+in EAS. To deploy backend changes, use the ignored `.env.production.local`:
+
+```bash
+CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh deploy
+```
+
+This deployment has its own data; it does not contain the Mac's development
+accounts or workout history. Infrastructure is managed in `~/Code/nix-server`.
+
+Log into Expo once, then start the build from the app directory while entering
+the Nix environment at the repository root:
+
+```bash
+nix develop -c npx eas-cli@latest login
+nix develop -c sh -c 'cd apps/mobile && npx eas-cli@latest build --platform android --profile preview'
+```
+
+The app is configured for EAS project `669c38b2-8856-46a3-b55a-45a92defb284`.
+On the first build, EAS will generate an Android signing key. When the build
+finishes, open its APK download link on your phone
+and install it. `.easignore` includes the generated Convex client bindings while
+excluding local environment files and signing credentials.
+
 ## Verify the setup
 
 Check that Convex is reachable:

@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Dumbbell, History, MessageSquareText, Settings, TrendingUp } from 'lucide-react-native';
+import {
+  ArrowUpRight,
+  History,
+  MessageSquareText,
+  Settings,
+  TrendingUp,
+} from 'lucide-react-native';
 import { Button, IconButton, ModeSwitch, type FitnessMode } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PromptBar } from '@/components/prompt-bar';
@@ -13,6 +19,8 @@ import { WorkoutHistoryDrawer } from '@/components/workout-history-drawer';
 import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { useWorkoutSession } from './use-workout-session';
+import { DisplayText } from '@/components/display-text';
+import { SessionBanner } from './session-banner';
 
 const suggestions = [
   'How has my bench press improved?',
@@ -57,55 +65,52 @@ export default function HomeScreen() {
     router.setParams({ mode: next });
   }
   return (
-    <Screen>
-      <View className="px-5 pb-3 pt-4">
-        <View className="mb-5 flex-row items-center justify-between">
-          <View className="flex-row items-center gap-2">
-            <Dumbbell color={colors.accent} size={23} strokeWidth={2} />
-            <Text className="text-lg font-bold tracking-tight text-ink dark:text-ink-dark">
-              Fitness AI
-            </Text>
-          </View>
-          <View className="flex-row gap-1">
-            <IconButton
-              accessibilityLabel="Open workout history"
-              onPress={() => setHistoryOpen(true)}
-            >
-              <History color={colors.text} size={21} />
-            </IconButton>
-            <IconButton
-              accessibilityLabel="Open conversation"
-              onPress={() => setConversationOpen(true)}
-            >
-              <MessageSquareText color={colors.text} size={21} />
-            </IconButton>
-            <IconButton
-              accessibilityLabel="Open settings"
-              disabled={session.busy}
-              onPress={() => router.push('/settings/account')}
-            >
-              <Settings color={colors.text} size={21} />
-            </IconButton>
-          </View>
-        </View>
+    <Screen
+      headerActions={
+        <>
+          <IconButton
+            accessibilityLabel="Open workout history"
+            onPress={() => setHistoryOpen(true)}
+          >
+            <History color={colors.text} size={20} />
+          </IconButton>
+          <IconButton
+            accessibilityLabel="Open conversation"
+            onPress={() => setConversationOpen(true)}
+          >
+            <MessageSquareText color={colors.text} size={20} />
+          </IconButton>
+          <IconButton
+            accessibilityLabel="Open settings"
+            disabled={session.busy}
+            onPress={() => router.push('/settings/account')}
+          >
+            <Settings color={colors.text} size={20} />
+          </IconButton>
+        </>
+      }
+    >
+      <View className="px-5 pb-2">
         <ModeSwitch mode={mode} onChange={changeMode} disabled={session.busy} />
-        <View className="mt-6 flex-row flex-wrap items-center justify-between gap-3">
-          <View>
-            <Text className="text-[32px] font-bold tracking-tight text-ink dark:text-ink-dark">
-              {mode === 'workout' ? 'Your workout' : 'Your progress'}
-            </Text>
-            <Text className="mt-1 text-sm text-muted dark:text-muted-dark">
-              {mode === 'workout'
-                ? `${dateLabel}${setCount ? `  /  ${setCount} sets logged` : ''}`
-                : 'Built from your saved workouts'}
-            </Text>
+        {mode === 'workout' ? (
+          <SessionBanner
+            date={dateLabel}
+            sets={setCount}
+            exercises={exercises.length}
+            busy={session.busy}
+            onReview={() => router.push('/workout/confirm')}
+          />
+        ) : (
+          <View className="mt-5 flex-row items-end justify-between">
+            <View>
+              <Text className="text-sm text-muted dark:text-muted-dark">
+                Your training, in perspective
+              </Text>
+              <DisplayText className="text-[52px] leading-[60px]">The long game.</DisplayText>
+            </View>
+            <TrendingUp size={36} strokeWidth={1.5} color={colors.accent} />
           </View>
-          {mode === 'workout' && setCount > 0 ? (
-            <Button disabled={session.busy} onPress={() => router.push('/workout/confirm')}>
-              Review workout
-            </Button>
-          ) : null}
-        </View>
+        )}
       </View>
       {mode === 'workout' ? (
         <WorkoutTable
@@ -131,10 +136,9 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View className="flex-1 justify-center py-6">
-              <TrendingUp color={colors.accent} size={36} strokeWidth={1.5} />
-              <Text className="mt-5 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">
-                See what’s adding up.
-              </Text>
+              <DisplayText className="text-[36px] leading-10">
+                Every session tells a story.
+              </DisplayText>
               <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
                 Explore your lifts, spot patterns, and follow your progress.
               </Text>
@@ -145,9 +149,12 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     disabled={session.busy}
                     onPress={() => setPrompt(text)}
-                    className="min-h-12 justify-center rounded-xl border border-line bg-panel px-4 py-3 active:opacity-70 dark:border-line-dark dark:bg-panel-dark"
+                    className="min-h-16 flex-row items-center justify-between gap-4 border-b border-line py-4 active:opacity-70 dark:border-line-dark"
                   >
-                    <Text className="text-sm text-ink dark:text-ink-dark">{text}</Text>
+                    <Text className="flex-1 text-base font-medium text-ink dark:text-ink-dark">
+                      {text}
+                    </Text>
+                    <ArrowUpRight color={colors.accent} size={21} />
                   </Pressable>
                 ))}
               </View>

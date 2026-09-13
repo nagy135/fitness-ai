@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { IconButton } from '@fitness/ui';
 import { useAppTheme } from './theme-provider';
+import { ThemeToggle } from './theme-toggle';
+import { DisplayText } from './display-text';
 
 export function Drawer({
   title,
@@ -31,16 +33,17 @@ export function Drawer({
             paddingBottom: Math.max(insets.bottom, 20),
           }}
         >
-          <View className="mb-6 flex-row items-center justify-between gap-3">
-            <View className="flex-1">
-              <Text className="text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">
-                {title}
-              </Text>
-              <Text className="mt-1 text-sm text-muted dark:text-muted-dark">{subtitle}</Text>
-            </View>
+          <View className="mb-4 flex-row items-center justify-between">
+            <ThemeToggle />
             <IconButton accessibilityLabel={`Close ${title.toLowerCase()}`} onPress={onClose}>
               <X color={colors.text} size={21} />
             </IconButton>
+          </View>
+          <View className="mb-6 flex-row items-center justify-between gap-3">
+            <View className="flex-1">
+              <DisplayText className="text-[40px] leading-[46px]">{title}</DisplayText>
+              <Text className="mt-1 text-sm text-muted dark:text-muted-dark">{subtitle}</Text>
+            </View>
           </View>
           {children}
         </View>

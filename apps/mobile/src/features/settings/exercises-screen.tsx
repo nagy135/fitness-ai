@@ -8,6 +8,8 @@ import { Button, Card, Dialog, IconButton, Input } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { useAppTheme } from '@/components/theme-provider';
 import { Screen } from '@/components/screen';
+import { DisplayText } from '@/components/display-text';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { ErrorNotice } from '@/components/error-notice';
 
 export default function ExercisesScreen() {
@@ -68,32 +70,31 @@ export default function ExercisesScreen() {
   }
 
   return (
-    <Screen>
-      <View className="flex-1 px-5 pt-4">
-        <View className="flex-row items-center justify-between">
-          <IconButton
-            accessibilityLabel="Back to settings"
-            onPress={() =>
-              router.canGoBack() ? router.back() : router.replace('/settings/account')
-            }
-          >
-            <ArrowLeft color={colors.text} size={20} />
-          </IconButton>
-          <IconButton
-            accessibilityLabel="Add exercise"
-            className="bg-accent dark:bg-accent-dark"
-            disabled={busy}
-            onPress={() => {
-              setError(undefined);
-              setDialog(true);
-            }}
-          >
-            <Plus color={colors.accentInk} size={20} />
-          </IconButton>
-        </View>
-        <Text className="mb-6 mt-7 text-[32px] font-bold tracking-tight text-ink dark:text-ink-dark">
-          Exercise library
-        </Text>
+    <Screen
+      headerLeft={
+        <IconButton
+          accessibilityLabel="Back to settings"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings/account'))}
+        >
+          <ArrowLeft color={colors.text} size={20} />
+        </IconButton>
+      }
+      headerActions={
+        <IconButton
+          accessibilityLabel="Add exercise"
+          className="bg-accent dark:bg-accent-dark"
+          disabled={busy}
+          onPress={() => {
+            setError(undefined);
+            setDialog(true);
+          }}
+        >
+          <Plus color={colors.accentInk} size={20} />
+        </IconButton>
+      }
+    >
+      <View className="flex-1 px-5 pt-2">
+        <DisplayText className="mb-6 text-[48px] leading-[56px]">Exercise library.</DisplayText>
         <ErrorNotice message={!dialog ? error : undefined} />
         <ScrollView contentContainerClassName="gap-3 pb-10">
           {!exercises.length ? (
@@ -128,6 +129,7 @@ export default function ExercisesScreen() {
             if (!busy) setDialog(false);
           }}
           title="New exercise"
+          headerAction={<ThemeToggle />}
           visible={dialog}
         >
           <Input autoFocus label="Name" onChangeText={setName} value={name} />

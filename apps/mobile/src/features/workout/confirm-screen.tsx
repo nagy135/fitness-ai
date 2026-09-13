@@ -11,6 +11,7 @@ import { useAppTheme } from '@/components/theme-provider';
 import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { formatSet } from './history-format';
+import { DisplayText } from '@/components/display-text';
 
 export default function ConfirmWorkoutScreen() {
   const { colors } = useAppTheme();
@@ -42,14 +43,15 @@ export default function ConfirmWorkoutScreen() {
     }
   }
   return (
-    <Screen>
-      <View className="px-5 pb-4 pt-4">
+    <Screen
+      headerLeft={
         <IconButton accessibilityLabel="Back to workout" disabled={saving} onPress={back}>
           <ArrowLeft color={colors.text} size={22} />
         </IconButton>
-        <Text className="mt-5 text-[32px] font-bold tracking-tight text-ink dark:text-ink-dark">
-          Review your workout
-        </Text>
+      }
+    >
+      <View className="px-5 pb-4 pt-2">
+        <DisplayText className="text-[48px] leading-[54px]">Review your workout.</DisplayText>
         <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
           Check your sets below. Once saved, this workout becomes a permanent part of your history.
         </Text>
@@ -63,7 +65,7 @@ export default function ConfirmWorkoutScreen() {
               <Text className="mb-3 text-xl font-bold text-ink dark:text-ink-dark">
                 {exercise.name}
               </Text>
-              <View className="rounded-2xl border border-line bg-panel px-4 dark:border-line-dark dark:bg-panel-dark">
+              <View className="rounded-[20px] bg-panel px-4 dark:border-line-dark dark:bg-panel-dark">
                 {exercise.sets.map((set, index) => (
                   <View
                     className={`flex-row items-center gap-3 py-4 ${index ? 'border-t border-line dark:border-line-dark' : ''}`}
@@ -72,9 +74,9 @@ export default function ConfirmWorkoutScreen() {
                     <Text className="w-10 text-sm text-muted dark:text-muted-dark">
                       Set {index + 1}
                     </Text>
-                    <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
+                    <DisplayText className="flex-1 text-[28px] leading-9">
                       {formatSet(normalizeSetForTrackingType(set, trackingType))}
-                    </Text>
+                    </DisplayText>
                     <Check color={colors.accent} size={17} />
                   </View>
                 ))}

@@ -2,7 +2,7 @@ import '../global.css';
 import { ConvexBetterAuthProvider, type AuthClient } from '@convex-dev/better-auth/react';
 import { ConvexProvider, ConvexReactClient, useConvexAuth } from 'convex/react';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import { authClient } from '@/auth/client';
 import { ThemeProvider, useAppTheme } from '@/components/theme-provider';
 import { LoadingScreen } from '@/components/loading-screen';
@@ -21,13 +21,12 @@ const providerAuthClient = authClient as unknown as AuthClient;
 
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
 
   if (isLoading) return <LoadingScreen label="Restoring secure session…" />;
 
   return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           contentStyle: { backgroundColor: colors.canvas },
@@ -57,9 +56,12 @@ function AppProviders() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    BarlowCondensed: require('../../assets/fonts/BarlowCondensed-SemiBold.ttf'),
+  });
   return (
     <ThemeProvider>
-      <AppProviders />
+      {fontsLoaded || fontError ? <AppProviders /> : <LoadingScreen label="Getting ready…" />}
     </ThemeProvider>
   );
 }

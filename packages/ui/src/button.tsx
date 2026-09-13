@@ -5,7 +5,7 @@ import { useColorScheme } from 'nativewind';
 import { cn } from './cn';
 import themeColors from './theme.json';
 
-const buttonVariants = cva('min-h-12 py-3 flex-row items-center justify-center rounded-2xl px-5', {
+const buttonVariants = cva('min-h-12 py-3 flex-row items-center justify-center rounded-full px-5', {
   variants: {
     variant: {
       primary: 'bg-accent active:opacity-80 dark:bg-accent-dark',
