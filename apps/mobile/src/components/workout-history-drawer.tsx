@@ -1,8 +1,12 @@
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { Dumbbell } from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { CalendarDays, Dumbbell, List } from 'lucide-react-native';
+import { cn } from '@fitness/ui';
 import { useAppTheme } from './theme-provider';
 import { Drawer } from './drawer';
+import { WorkoutHistoryCalendar } from './workout-history-calendar';
 import { formatSetSummary, type WorkoutHistorySet } from '@/features/workout/history-format';
+import { groupWorkoutsByDay, historyDayKey } from '@/features/workout/history-calendar';
 
 interface WorkoutHistoryItem {
   _id: string;
@@ -38,6 +42,17 @@ export function WorkoutHistoryDrawer({
   workouts: WorkoutHistoryItem[] | undefined;
 }) {
   const { colors } = useAppTheme();
+  const [view, setView] = useState<'list' | 'calendar'>('list');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [initialDate] = useState(() => new Date());
+  const date = selectedDate ?? (workouts?.length ? new Date(workouts[0].performedAt) : initialDate);
+  const workoutsByDay = useMemo(() => groupWorkoutsByDay(workouts ?? []), [workouts]);
+  const workoutCounts = useMemo(
+    () => new Map([...workoutsByDay].map(([key, items]) => [key, items.length])),
+    [workoutsByDay],
+  );
+  const displayedWorkouts =
+    view === 'list' ? workouts : (workoutsByDay.get(historyDayKey(date)) ?? []);
 
   return (
     <Drawer
@@ -46,14 +61,76 @@ export function WorkoutHistoryDrawer({
       visible={visible}
       onClose={onClose}
     >
+      <View
+        accessibilityRole="tablist"
+        className="mb-4 flex-row rounded-2xl bg-soft p-1 dark:bg-soft-dark"
+      >
+        {(['list', 'calendar'] as const).map((option) => {
+          const selected = view === option;
+          const Icon = option === 'list' ? List : CalendarDays;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="tab"
+              accessibilityLabel={option === 'list' ? 'Latest workouts list' : 'Workout calendar'}
+              accessibilityState={{ selected }}
+              onPress={() => setView(option)}
+              className={cn(
+                'min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl',
+                selected && 'bg-panel dark:bg-panel-dark',
+              )}
+            >
+              <Icon color={selected ? colors.accent : colors.muted} size={18} />
+              <Text
+                className={cn(
+                  'text-sm font-bold',
+                  selected
+                    ? 'text-accent dark:text-accent-dark'
+                    : 'text-muted dark:text-muted-dark',
+                )}
+              >
+                {option === 'list' ? 'List' : 'Calendar'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
       {workouts === undefined ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={colors.accent} />
           <Text className="mt-3 text-sm text-muted dark:text-muted-dark">Loading workouts…</Text>
         </View>
-      ) : workouts.length ? (
-        <ScrollView contentContainerClassName="gap-4 pb-6" showsVerticalScrollIndicator={false}>
-          {workouts.map((workout) => (
+      ) : workouts.length || view === 'calendar' ? (
+        <ScrollView
+          key={view}
+          contentContainerClassName="gap-4 pb-6"
+          showsVerticalScrollIndicator={false}
+        >
+          {view === 'calendar' ? (
+            <>
+              <WorkoutHistoryCalendar
+                selectedDate={date}
+                onSelectDate={setSelectedDate}
+                workoutCounts={workoutCounts}
+              />
+              <View accessibilityLiveRegion="polite">
+                <Text
+                  accessibilityRole="header"
+                  className="text-base font-bold text-ink dark:text-ink-dark"
+                >
+                  {formatWorkoutDate(date.getTime())}
+                </Text>
+                <Text className="mt-1 text-sm text-muted dark:text-muted-dark">
+                  {displayedWorkouts?.length
+                    ? `${displayedWorkouts.length} saved ${displayedWorkouts.length === 1 ? 'workout' : 'workouts'}`
+                    : workouts.length
+                      ? 'No workouts in your recent history for this day.'
+                      : 'No workouts yet. Confirm your current workout and it will appear here.'}
+                </Text>
+              </View>
+            </>
+          ) : null}
+          {displayedWorkouts?.map((workout) => (
             <View
               className="rounded-3xl border border-line bg-panel p-5 dark:border-line-dark dark:bg-panel-dark"
               key={workout._id}
