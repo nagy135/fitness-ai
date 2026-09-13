@@ -20,7 +20,6 @@ import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { useWorkoutSession } from './use-workout-session';
 import { DisplayText } from '@/components/display-text';
-import { SessionBanner } from './session-banner';
 
 const suggestions = [
   'How has my bench press improved?',
@@ -50,12 +49,6 @@ export default function HomeScreen() {
     return <LoadingScreen label="Loading your workout…" />;
   const exercises = session.draft?.exercises ?? [];
   const setCount = exercises.reduce((total, row) => total + row.sets.length, 0);
-  const sessionDate = session.draft?.date ? new Date(`${session.draft.date}T12:00:00`) : new Date();
-  const dateLabel = sessionDate.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
   function changeMode(next: FitnessMode) {
     if (next === mode || session.busy) return;
     if (next === 'analysis' && setCount > 0) {
@@ -72,35 +65,27 @@ export default function HomeScreen() {
             accessibilityLabel="Open workout history"
             onPress={() => setHistoryOpen(true)}
           >
-            <History color={colors.text} size={20} />
+            <History color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
             accessibilityLabel="Open conversation"
             onPress={() => setConversationOpen(true)}
           >
-            <MessageSquareText color={colors.text} size={20} />
+            <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
             accessibilityLabel="Open settings"
             disabled={session.busy}
             onPress={() => router.push('/settings/account')}
           >
-            <Settings color={colors.text} size={20} />
+            <Settings color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
         </>
       }
     >
       <View className="px-5 pb-2">
         <ModeSwitch mode={mode} onChange={changeMode} disabled={session.busy} />
-        {mode === 'workout' ? (
-          <SessionBanner
-            date={dateLabel}
-            sets={setCount}
-            exercises={exercises.length}
-            busy={session.busy}
-            onReview={() => router.push('/workout/confirm')}
-          />
-        ) : (
+        {mode === 'analysis' ? (
           <View className="mt-5 flex-row items-end justify-between">
             <View>
               <Text className="text-sm text-muted dark:text-muted-dark">
@@ -110,7 +95,7 @@ export default function HomeScreen() {
             </View>
             <TrendingUp size={36} strokeWidth={1.5} color={colors.accent} />
           </View>
-        )}
+        ) : null}
       </View>
       {mode === 'workout' ? (
         <WorkoutTable
@@ -169,6 +154,17 @@ export default function HomeScreen() {
               {session.response.text}
             </Text>
           </ScrollView>
+        </View>
+      ) : null}
+      {mode === 'workout' && setCount > 0 ? (
+        <View className="px-5 pb-2">
+          <Button
+            variant="secondary"
+            disabled={session.busy}
+            onPress={() => router.push('/workout/confirm')}
+          >
+            Review workout
+          </Button>
         </View>
       ) : null}
       <ErrorNotice message={session.error} />

@@ -40,7 +40,7 @@ export function Screen({
               <DisplayText className="text-[32px] leading-10">ai</DisplayText>
             </View>
           )}
-          <View className="flex-row items-center gap-1">
+          <View className="flex-row items-center gap-[4px]">
             {headerActions}
             <ThemeToggle />
           </View>

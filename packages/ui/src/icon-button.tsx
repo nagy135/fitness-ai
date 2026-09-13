@@ -12,7 +12,7 @@ export function IconButton({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       className={cn(
-        'h-11 w-11 items-center justify-center rounded-xl active:bg-soft dark:active:bg-soft-dark',
+        'h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl active:bg-soft dark:active:bg-soft-dark',
         disabled && 'opacity-40',
         className,
       )}
