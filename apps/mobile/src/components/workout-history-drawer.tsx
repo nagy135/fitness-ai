@@ -2,14 +2,18 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarDays, Dumbbell, List } from 'lucide-react-native';
 import { cn } from '@fitness/ui';
+import { useMutation } from 'convex/react';
+import { api } from '@fitness/convex/api';
+import type { Id } from '@fitness/convex/data-model';
 import { useAppTheme } from './theme-provider';
 import { Drawer } from './drawer';
 import { WorkoutHistoryCalendar } from './workout-history-calendar';
+import { WorkoutHistoryRecordActions } from './workout-history-record-actions';
 import { formatSetSummary, type WorkoutHistorySet } from '@/features/workout/history-format';
 import { groupWorkoutsByDay, historyDayKey } from '@/features/workout/history-calendar';
 
 interface WorkoutHistoryItem {
-  _id: string;
+  _id: Id<'workouts'>;
   performedAt: number;
   notes?: string;
   exercises: {
@@ -42,6 +46,7 @@ export function WorkoutHistoryDrawer({
   workouts: WorkoutHistoryItem[] | undefined;
 }) {
   const { colors } = useAppTheme();
+  const deleteWorkout = useMutation(api.workouts.remove);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [initialDate] = useState(() => new Date());
@@ -135,9 +140,10 @@ export function WorkoutHistoryDrawer({
               className="rounded-3xl border border-line bg-panel p-5 dark:border-line-dark dark:bg-panel-dark"
               key={workout._id}
             >
-              <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
-                {formatWorkoutDate(workout.performedAt)}
-              </Text>
+              <WorkoutHistoryRecordActions
+                dateLabel={formatWorkoutDate(workout.performedAt)}
+                onDelete={() => deleteWorkout({ workoutId: workout._id })}
+              />
               <View className="mt-4 gap-3">
                 {workout.exercises.map((exercise, index) => (
                   <Text

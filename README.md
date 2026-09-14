@@ -262,6 +262,28 @@ CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hoste
 This deployment has its own data; it does not contain the Mac's development
 accounts or workout history. Infrastructure is managed in `~/Code/nix-server`.
 
+To browse or edit the nixpi database, open
+`https://fitness-ai-dashboard.infiniter.tech` and log in with
+`CONVEX_SELF_HOSTED_ADMIN_KEY` from `.env.production.local`.
+
+You can also start a local dashboard connected to the same deployment:
+
+```bash
+nix develop -c ./scripts/convex-dashboard.sh
+```
+
+Open `http://localhost:6792` and log in with `CONVEX_SELF_HOSTED_ADMIN_KEY`
+from `.env.production.local`. Choose **Data**, then a table; double-click a cell
+or right-click a row and choose **Edit Document**. Edits affect the deployed
+database immediately. Confirmed workouts are immutable application history;
+preserve that boundary when administering data.
+
+The script reads the backend URL from `.env.production.local`, binds the
+dashboard to the Mac's loopback interface, and removes its container when you
+press `Ctrl+C`. Override `CONVEX_ENV_FILE` to select another environment,
+`DASHBOARD_PORT` to change the local port, or `CONVEX_DASHBOARD_IMAGE` to pin
+the dashboard image. Docker must be running.
+
 Log into Expo once, then start the build from the app directory while entering
 the Nix environment at the repository root:
 

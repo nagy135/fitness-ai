@@ -25,6 +25,17 @@ export const recent = query({
   },
 });
 
+export const remove = mutation({
+  args: { workoutId: v.id('workouts') },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const workout = await ctx.db.get(args.workoutId);
+    if (!workout || workout.userId !== user._id) throw new ConvexError('Workout not found');
+    await ctx.db.delete(workout._id);
+    // Keep the confirmation receipt so a retried confirmation cannot recreate history.
+  },
+});
+
 export const confirmDraft = mutation({
   args: { draftId: v.id('workoutDrafts') },
   handler: async (ctx, args) => {

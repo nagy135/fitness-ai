@@ -53,7 +53,7 @@ export default function ConfirmWorkoutScreen() {
       <View className="px-5 pb-4 pt-2">
         <DisplayText className="text-[48px] leading-[54px]">Review your workout.</DisplayText>
         <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
-          Check your sets below. Once saved, this workout becomes a permanent part of your history.
+          Check your sets below. Saved workouts cannot be edited, but can be deleted from history.
         </Text>
       </View>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 py-4">
