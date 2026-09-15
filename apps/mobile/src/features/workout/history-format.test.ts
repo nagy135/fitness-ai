@@ -9,15 +9,15 @@ describe('workout measurement summaries', () => {
         { weightKg: 80, reps: 8 },
         { weightKg: 80, reps: 6 },
       ]),
-    ).toBe('1 set of 80 kg × 8 reps, 1 set of 80 kg × 6 reps');
+    ).toBe('8x80kg, 6x80kg');
   });
   it('preserves duration and distance together', () => {
     expect(formatSet({ durationSeconds: 300, distanceMeters: 1000 })).toBe('300 sec × 1000 m');
     expect(formatSet({ weightKg: 12.5, durationSeconds: 45 })).toBe('12.5 kg × 45 sec');
   });
-  it('groups only consecutive identical sets to preserve training order', () => {
+  it('lists every set in training order, including repeated sets', () => {
     expect(formatSetSummary([{ reps: 8 }, { reps: 8 }, { reps: 6 }, { reps: 8 }])).toBe(
-      '2 sets of 8 reps, 1 set of 6 reps, 1 set of 8 reps',
+      '8 reps, 8 reps, 6 reps, 8 reps',
     );
   });
   it('handles empty and fractional values without hiding measurements', () => {

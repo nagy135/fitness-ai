@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
+import { ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
 import { Button, IconButton } from '@fitness/ui';
 import { useAppTheme } from './theme-provider';
 
@@ -8,16 +8,21 @@ export function WorkoutHistoryRecordActions({
   dateLabel,
   onDelete,
   onEdit,
+  expanded,
+  onToggle,
 }: {
   dateLabel: string;
   onDelete: () => Promise<unknown>;
   onEdit?: () => Promise<unknown>;
+  expanded?: boolean;
+  onToggle?: () => void;
 }) {
   const { colors } = useAppTheme();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string>();
   const locked = useRef(false);
+  const Chevron = expanded ? ChevronUp : ChevronDown;
 
   async function confirmDelete() {
     if (!confirming || locked.current) return;
@@ -53,9 +58,25 @@ export function WorkoutHistoryRecordActions({
   return (
     <View>
       <View className="flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-sm font-semibold text-accent dark:text-accent-dark">
-          {dateLabel}
-        </Text>
+        {onToggle ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Workout from ${dateLabel}`}
+            accessibilityHint={expanded ? 'Collapse workout' : 'Expand workout'}
+            accessibilityState={{ expanded }}
+            onPress={onToggle}
+            className="min-h-12 flex-1 flex-row items-center gap-2 active:opacity-70"
+          >
+            <Chevron color={colors.accent} size={18} />
+            <Text className="flex-1 text-sm font-semibold text-accent dark:text-accent-dark">
+              {dateLabel}
+            </Text>
+          </Pressable>
+        ) : (
+          <Text className="flex-1 text-sm font-semibold text-accent dark:text-accent-dark">
+            {dateLabel}
+          </Text>
+        )}
         {onEdit ? (
           <IconButton
             accessibilityLabel={`Edit workout from ${dateLabel}`}

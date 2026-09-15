@@ -3,8 +3,13 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkoutHistoryRecordActions } from './workout-history-record-actions';
 
-vi.mock('react-native', () => ({ Text: 'Text', View: 'View' }));
-vi.mock('lucide-react-native', () => ({ Trash2: 'Trash2', Pencil: 'Pencil' }));
+vi.mock('react-native', () => ({ Pressable: 'Pressable', Text: 'Text', View: 'View' }));
+vi.mock('lucide-react-native', () => ({
+  Trash2: 'Trash2',
+  Pencil: 'Pencil',
+  ChevronDown: 'ChevronDown',
+  ChevronUp: 'ChevronUp',
+}));
 vi.mock('@fitness/ui', () => ({ Button: 'Button', IconButton: 'IconButton' }));
 vi.mock('./theme-provider', () => ({ useAppTheme: () => ({ colors: { danger: 'red' } }) }));
 

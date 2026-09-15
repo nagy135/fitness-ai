@@ -9,7 +9,8 @@ import { useAppTheme } from './theme-provider';
 import { Drawer } from './drawer';
 import { WorkoutHistoryCalendar } from './workout-history-calendar';
 import { WorkoutHistoryRecordActions } from './workout-history-record-actions';
-import { formatSetSummary, type WorkoutHistorySet } from '@/features/workout/history-format';
+import type { WorkoutHistorySet } from '@/features/workout/history-format';
+import { WorkoutHistoryExercise } from './workout-history-exercise';
 import { groupWorkoutsByDay, historyDayKey } from '@/features/workout/history-calendar';
 
 interface WorkoutHistoryItem {
@@ -53,6 +54,7 @@ export function WorkoutHistoryDrawer({
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [initialDate] = useState(() => new Date());
+  const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
   const date = selectedDate ?? (workouts?.length ? new Date(workouts[0].performedAt) : initialDate);
   const workoutsByDay = useMemo(() => groupWorkoutsByDay(workouts ?? []), [workouts]);
   const workoutCounts = useMemo(
@@ -138,39 +140,60 @@ export function WorkoutHistoryDrawer({
               </View>
             </>
           ) : null}
-          {displayedWorkouts?.map((workout) => (
-            <View
-              className="rounded-3xl border border-line bg-panel p-5 dark:border-line-dark dark:bg-panel-dark"
-              key={workout._id}
-            >
-              <WorkoutHistoryRecordActions
-                dateLabel={formatWorkoutDate(workout.performedAt)}
-                onDelete={() => deleteWorkout({ workoutId: workout._id })}
-                onEdit={async () => {
-                  await beginEdit({ workoutId: workout._id });
-                  onEdit();
-                }}
-              />
-              <View className="mt-4 gap-3">
-                {workout.exercises.map((exercise, index) => (
-                  <Text
-                    className="text-[15px] leading-6 text-ink dark:text-ink-dark"
-                    key={`${exercise.exerciseId}-${index}`}
+          {displayedWorkouts?.map((workout, workoutIndex) => {
+            const expanded = expandedWorkouts[workout._id] ?? workoutIndex === 0;
+            const toggleWorkout = () =>
+              setExpandedWorkouts((current) => ({
+                ...current,
+                [workout._id]: !expanded,
+              }));
+            return (
+              <View
+                className="rounded-3xl border border-line bg-panel p-5 dark:border-line-dark dark:bg-panel-dark"
+                key={workout._id}
+              >
+                <WorkoutHistoryRecordActions
+                  dateLabel={formatWorkoutDate(workout.performedAt)}
+                  expanded={expanded}
+                  onToggle={toggleWorkout}
+                  onDelete={() => deleteWorkout({ workoutId: workout._id })}
+                  onEdit={async () => {
+                    await beginEdit({ workoutId: workout._id });
+                    onEdit();
+                  }}
+                />
+                {expanded ? (
+                  <View className="mt-4 gap-3">
+                    {workout.exercises.map((exercise, index) => (
+                      <WorkoutHistoryExercise
+                        key={`${exercise.exerciseId}-${index}`}
+                        name={exercise.nameSnapshot}
+                        sets={exercise.sets}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Expand workout from ${formatWorkoutDate(workout.performedAt)}: ${workout.exercises.map((exercise) => exercise.nameSnapshot).join(', ') || 'No exercises'}`}
+                    accessibilityState={{ expanded: false }}
+                    onPress={toggleWorkout}
+                    className="min-h-12 justify-center py-2 active:opacity-70"
                   >
-                    <Text className="font-bold">{exercise.nameSnapshot}</Text>{' '}
-                    <Text className="text-muted dark:text-muted-dark">
-                      ({formatSetSummary(exercise.sets)})
+                    <Text className="text-[15px] leading-6 text-ink dark:text-ink-dark">
+                      {workout.exercises.map((exercise) => exercise.nameSnapshot).join(', ') ||
+                        'No exercises'}
                     </Text>
+                  </Pressable>
+                )}
+                {expanded && workout.notes ? (
+                  <Text className="mt-4 border-t border-line pt-3 text-sm italic leading-5 text-muted dark:border-line-dark dark:text-muted-dark">
+                    {workout.notes}
                   </Text>
-                ))}
+                ) : null}
               </View>
-              {workout.notes ? (
-                <Text className="mt-4 border-t border-line pt-3 text-sm italic leading-5 text-muted dark:border-line-dark dark:text-muted-dark">
-                  {workout.notes}
-                </Text>
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       ) : (
         <View className="flex-1 items-center justify-center px-5">
