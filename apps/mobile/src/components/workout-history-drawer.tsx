@@ -38,14 +38,17 @@ function formatWorkoutDate(performedAt: number) {
 
 export function WorkoutHistoryDrawer({
   onClose,
+  onEdit,
   visible,
   workouts,
 }: {
   onClose: () => void;
+  onEdit: () => void;
   visible: boolean;
   workouts: WorkoutHistoryItem[] | undefined;
 }) {
   const { colors } = useAppTheme();
+  const beginEdit = useMutation(api.workouts.beginEdit);
   const deleteWorkout = useMutation(api.workouts.remove);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -143,6 +146,10 @@ export function WorkoutHistoryDrawer({
               <WorkoutHistoryRecordActions
                 dateLabel={formatWorkoutDate(workout.performedAt)}
                 onDelete={() => deleteWorkout({ workoutId: workout._id })}
+                onEdit={async () => {
+                  await beginEdit({ workoutId: workout._id });
+                  onEdit();
+                }}
               />
               <View className="mt-4 gap-3">
                 {workout.exercises.map((exercise, index) => (

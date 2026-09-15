@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkoutHistoryRecordActions } from './workout-history-record-actions';
 
 vi.mock('react-native', () => ({ Text: 'Text', View: 'View' }));
-vi.mock('lucide-react-native', () => ({ Trash2: 'Trash2' }));
+vi.mock('lucide-react-native', () => ({ Trash2: 'Trash2', Pencil: 'Pencil' }));
 vi.mock('@fitness/ui', () => ({ Button: 'Button', IconButton: 'IconButton' }));
 vi.mock('./theme-provider', () => ({ useAppTheme: () => ({ colors: { danger: 'red' } }) }));
 
@@ -75,5 +75,41 @@ describe('workout deletion confirmation', () => {
     await act(() => confirm().props.onPress());
     expect(onDelete).toHaveBeenCalledTimes(2);
     expect(() => confirm()).toThrow();
+  });
+});
+
+describe('history edit action', () => {
+  it('opens the shared editor, blocks duplicate taps, and shows retryable failures', async () => {
+    let reject!: (error: Error) => void;
+    const onEdit = vi.fn(
+      () =>
+        new Promise<void>((_, fail) => {
+          reject = fail;
+        }),
+    );
+    await act(() =>
+      renderer.update(
+        createElement(WorkoutHistoryRecordActions, {
+          dateLabel: '13 September',
+          onDelete,
+          onEdit,
+        }),
+      ),
+    );
+    const edit = () => find('Edit workout from 13 September');
+    const press = edit().props.onPress;
+    await act(() => {
+      press();
+      press();
+    });
+    expect(onEdit).toHaveBeenCalledOnce();
+    expect(edit().props.disabled).toBe(true);
+    expect(trash().props.disabled).toBe(true);
+    await act(() => reject(new Error('Offline')));
+    expect(renderer.root.findByProps({ accessibilityRole: 'alert' }).props.children).toContain(
+      'Could not open',
+    );
+    expect(edit().props.disabled).toBe(false);
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

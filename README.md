@@ -275,8 +275,8 @@ nix develop -c ./scripts/convex-dashboard.sh
 Open `http://localhost:6792` and log in with `CONVEX_SELF_HOSTED_ADMIN_KEY`
 from `.env.production.local`. Choose **Data**, then a table; double-click a cell
 or right-click a row and choose **Edit Document**. Edits affect the deployed
-database immediately. Confirmed workouts are immutable application history;
-preserve that boundary when administering data.
+database immediately. Confirmed workouts can be edited from history through the shared workout editor;
+changes reach saved history only after review and confirmation.
 
 The script reads the backend URL from `.env.production.local`, binds the
 dashboard to the Mac's loopback interface, and removes its container when you
@@ -289,10 +289,14 @@ the Nix environment at the repository root:
 
 ```bash
 nix develop -c npx eas-cli@latest login
-nix develop -c sh -c 'cd apps/mobile && npx eas-cli@latest build --platform android --profile preview'
+nix develop -c pnpm deploy:eas
 ```
 
 The app is configured for EAS project `669c38b2-8856-46a3-b55a-45a92defb284`.
+Run `deploy:eas` from the repository root. It starts an EAS cloud build using the
+Android `preview` profile and its configured environment. Backend changes must
+also be deployed with
+`CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh deploy`.
 On the first build, EAS will generate an Android signing key. When the build
 finishes, open its APK download link on your phone
 and install it. `.easignore` includes the generated Convex client bindings while
@@ -383,7 +387,8 @@ The critical device flow is documented in `maestro/register-and-log-workout.yaml
 
 - Every user-scoped Convex function resolves the Better Auth identity on the server. Clients and AI tools never provide a `userId`.
 - Workout AI can modify only the active workout draft through validated tools.
-- Only the confirmation screen can create an immutable confirmed workout.
+- The confirmation screen creates saved workouts or applies a history editing draft to its original workout.
+- History edits reuse the workout table, AI tools, and review screen. Save or cancel restores the ordinary active draft.
 - Analysis tools are read-only and retrieve confirmed history on demand.
 - Chart data is passed through a validated 2D chart tool and rendered by the app.
 - Conversation text is not authoritative application state.

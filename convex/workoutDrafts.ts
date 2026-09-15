@@ -24,12 +24,16 @@ function snapshot(draft: Doc<'workoutDrafts'>) {
   };
 }
 
-async function currentForUser(ctx: ReadCtx, userId: Id<'userProfiles'>) {
+export async function currentForUser(ctx: ReadCtx, userId: Id<'userProfiles'>) {
   const drafts = await ctx.db
     .query('workoutDrafts')
     .withIndex('by_user', (q) => q.eq('userId', userId))
     .collect();
-  return drafts.find((draft) => draft.status === 'active' || draft.status === 'confirming') ?? null;
+  return (
+    drafts.find((draft) => draft.editingWorkoutId) ??
+    drafts.find((draft) => draft.status === 'active' || draft.status === 'confirming') ??
+    null
+  );
 }
 
 async function requireCurrent(

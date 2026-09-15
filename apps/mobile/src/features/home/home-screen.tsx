@@ -63,6 +63,7 @@ export default function HomeScreen() {
         <>
           <IconButton
             accessibilityLabel="Open workout history"
+            disabled={session.busy}
             onPress={() => setHistoryOpen(true)}
           >
             <History color={colors.text} size={20} strokeWidth={2} />
@@ -85,6 +86,23 @@ export default function HomeScreen() {
     >
       <View className="px-5 pb-2">
         <ModeSwitch mode={mode} onChange={changeMode} disabled={session.busy} />
+        {session.draft?.editingWorkoutId ? (
+          <View className="mt-3 gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark">
+            <Text className="font-bold text-ink dark:text-ink-dark">
+              Editing saved workout · {session.draft.date}
+            </Text>
+            <Text className="text-sm text-muted dark:text-muted-dark">
+              Review and save your changes when you’re done.
+            </Text>
+            <Button
+              variant="ghost"
+              disabled={session.busy}
+              onPress={() => void session.cancelHistoryEdit()}
+            >
+              Cancel changes
+            </Button>
+          </View>
+        ) : null}
         {mode === 'analysis' ? (
           <View className="mt-5 flex-row items-end justify-between">
             <View>
@@ -99,6 +117,7 @@ export default function HomeScreen() {
       </View>
       {mode === 'workout' ? (
         <WorkoutTable
+          key={session.draft?._id}
           exercises={exercises}
           busy={session.busy}
           onRemoveSet={session.removeSet}
@@ -163,7 +182,7 @@ export default function HomeScreen() {
             disabled={session.busy}
             onPress={() => router.push('/workout/confirm')}
           >
-            Review workout
+            {session.draft?.editingWorkoutId ? 'Review changes' : 'Review workout'}
           </Button>
         </View>
       ) : null}
@@ -186,6 +205,11 @@ export default function HomeScreen() {
         visible={conversationOpen}
       />
       <WorkoutHistoryDrawer
+        onEdit={() => {
+          setHistoryOpen(false);
+          setPrompts((previous) => ({ ...previous, workout: '' }));
+          router.setParams({ mode: 'workout' });
+        }}
         onClose={() => setHistoryOpen(false)}
         visible={historyOpen}
         workouts={session.workouts}

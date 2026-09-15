@@ -5,7 +5,7 @@ import type { FitnessMode } from '@fitness/ui';
 import type { AnalysisChart } from '@fitness/ai';
 import type { SetPatch } from '@/features/workout/workout-table';
 
-type Response = { text: string; chart?: AnalysisChart };
+type Response = { text: string; chart?: AnalysisChart; draftId?: string };
 export function useWorkoutSession(
   mode: FitnessMode,
   conversationOpen: boolean,
@@ -23,6 +23,7 @@ export function useWorkoutSession(
   const [responses, setResponses] = useState<Partial<Record<FitnessMode, Response>>>({});
   const ensureProfile = useMutation(api.userProfiles.ensureCurrent);
   const getOrCreate = useMutation(api.workoutDrafts.getOrCreate);
+  const cancelEdit = useMutation(api.workouts.cancelEdit);
   const update = useMutation(api.workoutDrafts.updateSet);
   const remove = useMutation(api.workoutDrafts.removeSet);
   const removeExercise = useMutation(api.workoutDrafts.removeExercise);
@@ -64,10 +65,10 @@ export function useWorkoutSession(
     setBusy(true);
     setError(undefined);
     try {
-      if (mode === 'workout') await getOrCreate({});
+      const responseDraftId = mode === 'workout' ? await getOrCreate({}) : undefined;
       const requestId = mode === 'workout' ? await prepareWorkoutRequest({ prompt }) : undefined;
       const result = requestId ? await workoutAI({ requestId }) : await analysisAI({ prompt });
-      setResponses((previous) => ({ ...previous, [mode]: result }));
+      setResponses((previous) => ({ ...previous, [mode]: { ...result, draftId: responseDraftId } }));
       // Once the result arrived, an acknowledgement failure must not turn this
       // into a failed submission: its acknowledgement may already have committed.
       if (requestId) await acknowledgeWorkoutRequest({ requestId }).catch(() => undefined);
@@ -110,8 +111,16 @@ export function useWorkoutSession(
     draft,
     messages,
     workouts,
-    response: responses[mode],
+    response:
+      mode === 'workout' && responses.workout?.draftId !== draft?._id ? undefined : responses[mode],
     submitPrompt,
+    cancelHistoryEdit: () =>
+      edit(async () => {
+        if (!draft?.editingWorkoutId) return;
+        await cancelEdit({ draftId: draft._id });
+        await getOrCreate({});
+        setResponses((previous) => ({ ...previous, workout: undefined }));
+      }),
     updateSet: (rowId: string, setId: string, patch: SetPatch) =>
       edit(() => update({ rowId, setId, patch, source: 'user_ui' })),
     removeSet: (rowId: string, setId: string) =>

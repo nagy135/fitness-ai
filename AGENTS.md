@@ -1,6 +1,6 @@
 # Fitness AI
 
-Fitness AI is a mobile-first workout tracker. Users log the current workout in natural language, review the resulting structured draft, confirm it into immutable history, and ask read-only questions about past training.
+Fitness AI is a mobile-first workout tracker. Users log the current workout in natural language, review the resulting structured draft, confirm it into saved history, and ask read-only questions about past training.
 
 ## Stack and layout
 
@@ -13,7 +13,7 @@ Fitness AI is a mobile-first workout tracker. Users log the current workout in n
 
 ## Important boundaries
 
-- Treat an active `workoutDraft` as mutable, but a confirmed `workout` as immutable history.
+- Edit confirmed workouts through an `editingWorkoutId` draft and explicit confirmation. Preserve the ordinary active draft and leave saved history unchanged until confirmation.
 - Workout-mode AI may edit only the active draft through validated tools. Analysis-mode AI is read-only.
 - Resolve the authenticated user in Convex functions; never accept a client- or model-provided `userId`.
 - Stored weight is normalized to kilograms. Preserve tracking-type normalization when handling sets.

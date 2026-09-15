@@ -1,3 +1,4 @@
+import { currentForUser } from './workoutDrafts';
 import { v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
@@ -79,16 +80,15 @@ export const prepareWorkoutRequest = mutation({
       .query('workoutRequests')
       .withIndex('by_user', (q) => q.eq('userId', user._id))
       .collect();
-    const existing = requests.find((request) => !request.acknowledged && request.prompt === prompt);
+    const draft = await currentForUser(ctx, user._id);
+    if (!draft) throw new Error('No active workout draft');
+    const existing = requests.find(
+      (request) =>
+        request.draftId === draft._id && !request.acknowledged && request.prompt === prompt,
+    );
     if (existing) return existing._id;
     if (requests.some((request) => request.status === 'running' && request.expiresAt > Date.now()))
       throw new Error('A workout request is still running. Try again when it finishes.');
-    const drafts = await ctx.db
-      .query('workoutDrafts')
-      .withIndex('by_user', (q) => q.eq('userId', user._id))
-      .collect();
-    const draft = drafts.find((item) => item.status === 'active');
-    if (!draft) throw new Error('No active workout draft');
     return ctx.db.insert('workoutRequests', {
       userId: user._id,
       draftId: draft._id,
@@ -143,6 +143,8 @@ export const beginWorkoutRequest = internalMutation({
       throw new Error('Another workout request is still running');
     const draft = await ctx.db.get(request.draftId);
     if (!draft || draft.userId !== user._id) throw new Error('Workout draft no longer exists');
+    if ((await currentForUser(ctx, user._id))?._id !== draft._id)
+      throw new Error('Workout draft is not currently selected');
     await ctx.db.patch(requestId, { status: 'running', expiresAt: Date.now() + 10 * 60 * 1000 });
     await ctx.db.insert('aiMessages', {
       userId: user._id,

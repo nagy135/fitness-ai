@@ -97,7 +97,7 @@ export const respond = action({
         }),
         removeExerciseFromDraft: tool({
           description:
-            'Remove one exercise row from the active draft. This never affects confirmed history.',
+            'Remove one exercise row from the active draft. History changes require the user to save the editing draft.',
           inputSchema: DraftRowInputSchema,
           execute: ({ rowId }) =>
             ctx.runMutation(refs.draftRemoveExercise, {

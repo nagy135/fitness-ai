@@ -62,6 +62,7 @@ export default defineSchema({
 
   workoutDrafts: defineTable({
     userId: v.id('userProfiles'),
+    editingWorkoutId: v.optional(v.id('workouts')),
     date: v.string(),
     status: v.union(v.literal('active'), v.literal('confirming')),
     exercises: v.array(draftExerciseValidator),
@@ -80,6 +81,7 @@ export default defineSchema({
       v.object({
         exerciseId: v.id('exercises'),
         nameSnapshot: v.string(),
+        notes: v.optional(v.string()),
         sets: v.array(v.object(setFields)),
       }),
     ),

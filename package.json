@@ -9,6 +9,7 @@
   "scripts": {
     "nx": "nx",
     "mobile": "nx start mobile",
+    "deploy:eas": "cd apps/mobile && npx eas-cli@latest build --platform android --profile preview",
     "convex:dev": "nx run convex:dev",
     "test": "nx run-many -t test",
     "typecheck": "nx run-many -t typecheck",

@@ -34,7 +34,7 @@ export default function ConfirmWorkoutScreen() {
     setError(undefined);
     try {
       await confirm({ draftId: draft._id });
-      router.replace('/?mode=analysis');
+      router.replace(draft.editingWorkoutId ? '/?mode=workout' : '/?mode=analysis');
     } catch {
       setError('Your workout could not be saved. Check your connection and try again.');
     } finally {
@@ -53,7 +53,9 @@ export default function ConfirmWorkoutScreen() {
       <View className="px-5 pb-4 pt-2">
         <DisplayText className="text-[48px] leading-[54px]">Review your workout.</DisplayText>
         <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
-          Check your sets below. Saved workouts cannot be edited, but can be deleted from history.
+          {draft?.editingWorkoutId
+            ? 'Check your changes below. Saving updates this workout in history.'
+            : 'Check your sets below. You can edit saved workouts from history.'}
         </Text>
       </View>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 py-4">
@@ -106,7 +108,7 @@ export default function ConfirmWorkoutScreen() {
       <ErrorNotice message={error} />
       <View className="gap-2 border-t border-line px-5 pb-4 pt-4 dark:border-line-dark">
         <Button disabled={!canConfirm} loading={saving} onPress={() => void finish()}>
-          Confirm workout
+          {draft?.editingWorkoutId ? 'Save changes' : 'Confirm workout'}
         </Button>
         <Button variant="ghost" disabled={saving} onPress={back}>
           Continue workout

@@ -9,7 +9,14 @@ import {
   finishWorkoutRequest,
   prepareWorkoutRequest,
 } from './aiMessages';
-import { addExercises, removeSet } from './workoutDrafts';
+import { beginEdit, cancelEdit, confirmDraft, remove as deleteWorkout } from './workouts';
+import {
+  addExercises,
+  removeSet,
+  updateSet,
+  currentForUser,
+  undoLastAction,
+} from './workoutDrafts';
 import { assertWorkoutRequest } from './lib/workoutRequest';
 
 vi.mock('./lib/auth', () => ({ requireUserProfile: vi.fn() }));
@@ -70,6 +77,9 @@ beforeEach(() => {
         rows.push({ ...value, _id, table });
         return _id;
       },
+      delete: async (id: string) => {
+        rows = rows.filter((row) => row._id !== id);
+      },
       patch: async (id: string, value: Record<string, unknown>) => {
         Object.assign(
           rows.find((row) => row._id === id)!,
@@ -97,6 +107,8 @@ beforeEach(() => {
             return query;
           },
           collect: async () => selected,
+          unique: async () => selected[0] ?? null,
+          take: async (n: number) => selected.slice(0, n),
         };
         return query;
       },
@@ -252,5 +264,155 @@ describe('full model conversation', () => {
     expect(await history(ctx, { mode: 'analysis' })).toEqual([
       { role: 'user', content: 'analysis' },
     ]);
+  });
+});
+
+const editHistory = handler<{ workoutId: Id<'workouts'> }, Id<'workoutDrafts'>>(beginEdit);
+const cancelHistory = handler<{ draftId: Id<'workoutDrafts'> }, void>(cancelEdit);
+const save = handler<{ draftId: Id<'workoutDrafts'> }, Id<'workouts'>>(confirmDraft);
+const erase = handler<{ workoutId: Id<'workouts'> }, void>(deleteWorkout);
+const update = handler<
+  {
+    rowId: string;
+    setId: string;
+    patch: { reps: number; weightKg?: number };
+    source: 'user_ui';
+  },
+  void
+>(updateSet);
+const undo = handler<{ source: 'user_ui' }, void>(undoLastAction);
+const savedId = 'saved-workout' as Id<'workouts'>;
+
+function seedWorkout() {
+  rows.push({
+    _id: savedId,
+    table: 'workouts',
+    userId,
+    sourceDraftId: 'original-draft',
+    performedAt: Date.parse('2026-08-20T08:30:00Z'),
+    createdAt: 123,
+    notes: 'Morning session',
+    exercises: [
+      { exerciseId, nameSnapshot: 'Original push-ups', notes: 'Slow tempo', sets: [{ reps: 8 }] },
+    ],
+  });
+}
+
+describe('history editing through shared workout tools', () => {
+  beforeEach(seedWorkout);
+
+  it('reuses an editing draft and cancels without changing history or the ordinary draft', async () => {
+    rows[0].exercises = [
+      {
+        rowId: 'in-progress',
+        exerciseId,
+        name: 'Push-ups',
+        sets: [{ setId: 'in-progress-set', reps: 20 }],
+      },
+    ];
+    const original = structuredClone(rows);
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    expect(await editHistory(ctx, { workoutId: savedId })).toBe(editingId);
+    expect((await currentForUser(ctx, userId))?._id).toBe(editingId);
+    const requestId = await running();
+    await add(ctx, batch(requestId));
+    await finish(ctx, { requestId, text: 'Added', failed: false });
+    await cancelHistory(ctx, { draftId: editingId });
+    await cancelHistory(ctx, { draftId: editingId });
+    expect(await currentForUser(ctx, userId)).toEqual(original[0]);
+    expect(rows.find((row) => row._id === savedId)).toEqual(original[2]);
+  });
+
+  it('supports manual edits, undo, AI additions and an idempotent save to the same history record', async () => {
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const draft = (await currentForUser(ctx, userId))!;
+    const row = draft.exercises[0];
+    await update(ctx, {
+      rowId: row.rowId,
+      setId: row.sets[0].setId,
+      patch: { reps: 12, weightKg: 30 },
+      source: 'user_ui',
+    });
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets[0]).toMatchObject({ reps: 12 });
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets[0].weightKg).toBeUndefined();
+    await undo(ctx, { source: 'user_ui' });
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets[0].reps).toBe(8);
+    const requestId = await running();
+    await add(ctx, batch(requestId));
+    await finish(ctx, { requestId, text: 'Added', failed: false });
+    expect(await save(ctx, { draftId: editingId })).toBe(savedId);
+    expect(await save(ctx, { draftId: editingId })).toBe(savedId);
+    const workout = rows.find((row) => row._id === savedId)!;
+    expect(workout).toMatchObject({
+      performedAt: Date.parse('2026-08-20T08:30:00Z'),
+      createdAt: 123,
+      sourceDraftId: 'original-draft',
+      notes: 'Morning session',
+      exercises: [
+        {
+          nameSnapshot: 'Original push-ups',
+          notes: 'Slow tempo',
+          sets: [{ reps: 8 }, { reps: 10 }, { reps: 10 }],
+        },
+      ],
+    });
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(1);
+    expect((await currentForUser(ctx, userId))?._id).toBe(draftId);
+  });
+
+  it('scopes identical prompt retries to the selected draft and blocks queued requests for the previous draft', async () => {
+    const oldRequest = await prepare(ctx, { prompt: 'Same prompt' });
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const newRequest = await prepare(ctx, { prompt: 'Same prompt' });
+    expect(newRequest).not.toBe(oldRequest);
+    expect(rows.find((row) => row._id === newRequest)?.draftId).toBe(editingId);
+    await expect(begin(ctx, { requestId: oldRequest })).rejects.toThrow('not currently selected');
+  });
+
+  it('blocks opening, saving, and canceling history edits while an AI write is running', async () => {
+    const first = await running();
+    await expect(editHistory(ctx, { workoutId: savedId })).rejects.toThrow('Wait for');
+    await finish(ctx, { requestId: first, text: 'Done', failed: false });
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    await running('Edit history');
+    await expect(save(ctx, { draftId: editingId })).rejects.toThrow('Wait for');
+    await expect(cancelHistory(ctx, { draftId: editingId })).rejects.toThrow('Wait for');
+  });
+
+  it('never recreates a workout deleted during editing', async () => {
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    await erase(ctx, { workoutId: savedId });
+    await expect(save(ctx, { draftId: editingId })).rejects.toThrow('Workout not found');
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(0);
+    await cancelHistory(ctx, { draftId: editingId });
+    expect((await currentForUser(ctx, userId))?._id).toBe(draftId);
+  });
+
+  it('rejects foreign workouts and editing drafts', async () => {
+    rows.find((row) => row._id === savedId)!.userId = 'someone-else';
+    await expect(editHistory(ctx, { workoutId: savedId })).rejects.toThrow('Workout not found');
+    rows.find((row) => row._id === savedId)!.userId = userId;
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    rows.find((row) => row._id === editingId)!.userId = 'someone-else';
+    await expect(cancelHistory(ctx, { draftId: editingId })).rejects.toThrow('not found');
+    await expect(save(ctx, { draftId: editingId })).rejects.toThrow('not found');
+  });
+
+  it('requires finishing one history edit before opening another', async () => {
+    await editHistory(ctx, { workoutId: savedId });
+    const otherId = 'other-workout' as Id<'workouts'>;
+    rows.push({ ...rows.find((row) => row._id === savedId)!, _id: otherId });
+    await expect(editHistory(ctx, { workoutId: otherId })).rejects.toThrow('Save or cancel');
+    expect(rows.filter((row) => row.table === 'workoutDrafts')).toHaveLength(2);
+  });
+
+  it('does not save an empty history edit', async () => {
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const row = (await currentForUser(ctx, userId))!.exercises[0];
+    await remove(ctx, { rowId: row.rowId, setId: row.sets[0].setId, source: 'user_ui' });
+    await expect(save(ctx, { draftId: editingId })).rejects.toThrow('empty workout');
+    expect(rows.find((row) => row._id === savedId)).toMatchObject({
+      exercises: [{ sets: [{ reps: 8 }] }],
+    });
   });
 });
