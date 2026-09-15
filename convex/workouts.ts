@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { normalizeSetForTrackingType } from '@fitness/domain';
 import { mutation, query } from './_generated/server';
+import { assertWorkoutRequest } from './lib/workoutRequest';
 import { requireUserProfile } from './lib/auth';
 
 export const get = query({
@@ -50,6 +51,7 @@ export const confirmDraft = mutation({
 
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) throw new ConvexError('Workout draft not found');
+    await assertWorkoutRequest(ctx, user._id, draft._id, { source: 'user_ui' });
     if (draft.exercises.length === 0 || draft.exercises.every((row) => row.sets.length === 0)) {
       throw new ConvexError('Cannot confirm an empty workout');
     }

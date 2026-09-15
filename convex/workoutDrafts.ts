@@ -5,6 +5,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
 import { eventSourceValidator, setFields } from './model';
+import { assertWorkoutRequest } from './lib/workoutRequest';
 import { validateExerciseOrder, validateTrackedSet } from './lib/draftValidation';
 
 type ReadCtx = QueryCtx | MutationCtx;
@@ -31,9 +32,14 @@ async function currentForUser(ctx: ReadCtx, userId: Id<'userProfiles'>) {
   return drafts.find((draft) => draft.status === 'active' || draft.status === 'confirming') ?? null;
 }
 
-async function requireCurrent(ctx: MutationCtx, userId: Id<'userProfiles'>) {
+async function requireCurrent(
+  ctx: MutationCtx,
+  userId: Id<'userProfiles'>,
+  args: { source: Source; requestId?: Id<'workoutRequests'> },
+) {
   const draft = await currentForUser(ctx, userId);
   if (!draft) throw new ConvexError('No active workout draft');
+  await assertWorkoutRequest(ctx, userId, draft._id, args);
   return draft;
 }
 
@@ -104,11 +110,12 @@ export const addExercise = mutation({
   args: {
     exerciseId: v.id('exercises'),
     notes: v.optional(v.string()),
+    requestId: v.optional(v.id('workoutRequests')),
     source: eventSourceValidator,
   },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     const exercise = await ctx.db.get(args.exerciseId);
     if (!exercise || exercise.userId !== user._id || exercise.archivedAt) {
       throw new ConvexError('Exercise not found');
@@ -137,11 +144,14 @@ export const addExercises = mutation({
         sets: v.array(v.object(setFields)),
       }),
     ),
+    requestId: v.optional(v.id('workoutRequests')),
     source: eventSourceValidator,
   },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
+    const request = args.requestId ? await ctx.db.get(args.requestId) : null;
+    if (request?.addedRowIds) return request.addedRowIds;
     if (args.exercises.length === 0 || args.exercises.length > 100) {
       throw new ConvexError('Exercise batch must contain between 1 and 100 exercises');
     }
@@ -201,15 +211,20 @@ export const addExercises = mutation({
       })),
     });
     await ctx.db.patch(draft._id, { exercises, updatedAt: Date.now() });
+    if (args.requestId) await ctx.db.patch(args.requestId, { addedRowIds: rowIds });
     return rowIds;
   },
 });
 
 export const removeExercise = mutation({
-  args: { rowId: v.string(), source: eventSourceValidator },
+  args: {
+    rowId: v.string(),
+    requestId: v.optional(v.id('workoutRequests')),
+    source: eventSourceValidator,
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     if (!draft.exercises.some((row) => row.rowId === args.rowId))
       throw new ConvexError('Draft exercise not found');
     await recordEvent(ctx, draft, 'remove_exercise', args.source, { rowId: args.rowId });
@@ -221,10 +236,15 @@ export const removeExercise = mutation({
 });
 
 export const addSet = mutation({
-  args: { exerciseId: v.id('exercises'), set: v.object(setFields), source: eventSourceValidator },
+  args: {
+    exerciseId: v.id('exercises'),
+    set: v.object(setFields),
+    requestId: v.optional(v.id('workoutRequests')),
+    source: eventSourceValidator,
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     const exercise = await ctx.db.get(args.exerciseId);
     if (!exercise || exercise.userId !== user._id || exercise.archivedAt)
       throw new ConvexError('Exercise not found');
@@ -257,11 +277,12 @@ export const updateSet = mutation({
     rowId: v.string(),
     setId: v.string(),
     patch: v.object(setFields),
+    requestId: v.optional(v.id('workoutRequests')),
     source: eventSourceValidator,
   },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     const targetRow = draft.exercises.find((row) => row.rowId === args.rowId);
     const exercise = targetRow?.exerciseId ? await ctx.db.get(targetRow.exerciseId) : null;
     let found = false;
@@ -291,10 +312,15 @@ export const updateSet = mutation({
 });
 
 export const removeSet = mutation({
-  args: { rowId: v.string(), setId: v.string(), source: eventSourceValidator },
+  args: {
+    rowId: v.string(),
+    setId: v.string(),
+    requestId: v.optional(v.id('workoutRequests')),
+    source: eventSourceValidator,
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     const row = draft.exercises.find((item) => item.rowId === args.rowId);
     if (!row?.sets.some((set) => set.setId === args.setId))
       throw new ConvexError('Draft set not found');
@@ -312,10 +338,15 @@ export const removeSet = mutation({
 });
 
 export const updateExerciseNotes = mutation({
-  args: { rowId: v.string(), notes: v.string(), source: eventSourceValidator },
+  args: {
+    rowId: v.string(),
+    notes: v.string(),
+    requestId: v.optional(v.id('workoutRequests')),
+    source: eventSourceValidator,
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     if (!draft.exercises.some((row) => row.rowId === args.rowId))
       throw new ConvexError('Draft exercise not found');
     await recordEvent(ctx, draft, 'update_notes', args.source, { rowId: args.rowId });
@@ -329,10 +360,14 @@ export const updateExerciseNotes = mutation({
 });
 
 export const reorderExercises = mutation({
-  args: { orderedRowIds: v.array(v.string()), source: eventSourceValidator },
+  args: {
+    orderedRowIds: v.array(v.string()),
+    requestId: v.optional(v.id('workoutRequests')),
+    source: eventSourceValidator,
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     validateExerciseOrder(
       draft.exercises.map((row) => row.rowId),
       args.orderedRowIds,
@@ -351,10 +386,10 @@ export const reorderExercises = mutation({
 });
 
 export const undoLastAction = mutation({
-  args: { source: eventSourceValidator },
+  args: { requestId: v.optional(v.id('workoutRequests')), source: eventSourceValidator },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
-    const draft = await requireCurrent(ctx, user._id);
+    const draft = await requireCurrent(ctx, user._id, args);
     const events = await ctx.db
       .query('draftEvents')
       .withIndex('by_draft_created', (q) => q.eq('draftId', draft._id))

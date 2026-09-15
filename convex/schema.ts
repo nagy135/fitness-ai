@@ -110,6 +110,23 @@ export default defineSchema({
     .index('by_draft', ['draftId'])
     .index('by_draft_created', ['draftId', 'createdAt']),
 
+  workoutRequests: defineTable({
+    userId: v.id('userProfiles'),
+    draftId: v.id('workoutDrafts'),
+    prompt: v.string(),
+    status: v.union(
+      v.literal('queued'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+    ),
+    acknowledged: v.boolean(),
+    addedRowIds: v.optional(v.array(v.string())),
+    expiresAt: v.number(),
+    text: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']),
+
   aiMessages: defineTable({
     userId: v.id('userProfiles'),
     mode: v.union(v.literal('workout'), v.literal('analysis')),

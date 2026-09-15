@@ -44,6 +44,8 @@ export const respond = action({
     ]);
     await ctx.runMutation(refs.messageAppend, { mode: 'analysis', role: 'user', text: prompt });
 
+    const messages = await ctx.runQuery(refs.conversation, { mode: 'analysis' });
+
     const exerciseRange = <T extends { exerciseId: string; from?: string; to?: string }>(
       input: T,
     ) => ({
@@ -132,7 +134,7 @@ export const respond = action({
     const result = await generateText({
       model: modelFromEnvironment(),
       system,
-      prompt,
+      messages,
       tools,
       stopWhen: stepCountIs(8),
     });
@@ -146,7 +148,10 @@ export const respond = action({
       const chartResult = await generateText({
         model: modelFromEnvironment(),
         system: `${system}\n\nThis is a chart-only correction pass. You MUST call renderChart exactly once. Use only values contained in the user's request or RETRIEVED DATA. Do not invent missing points.`,
-        prompt: `USER REQUEST: ${prompt}\n\nRETRIEVED DATA: ${JSON.stringify(retrievedData)}`,
+        messages: [
+          ...messages,
+          { role: 'user', content: `RETRIEVED DATA: ${JSON.stringify(retrievedData)}` },
+        ],
         tools: { renderChart: tools.renderChart },
         toolChoice: { type: 'tool', toolName: 'renderChart' },
         stopWhen: stepCountIs(1),

@@ -59,35 +59,51 @@ export const refs = {
     {
       exercises: { exerciseId: Id<'exercises'>; notes?: string; sets: TrackedSet[] }[];
       source: Source;
+      requestId?: Id<'workoutRequests'>;
     },
     string[]
   >('workoutDrafts:addExercises'),
-  draftRemoveExercise: makeFunctionReference<'mutation', { rowId: string; source: Source }, null>(
-    'workoutDrafts:removeExercise',
-  ),
+  draftRemoveExercise: makeFunctionReference<
+    'mutation',
+    { rowId: string; source: Source; requestId?: Id<'workoutRequests'> },
+    null
+  >('workoutDrafts:removeExercise'),
   draftUpdateSet: makeFunctionReference<
     'mutation',
-    { rowId: string; setId: string; patch: TrackedSet; source: Source },
+    {
+      rowId: string;
+      setId: string;
+      patch: TrackedSet;
+      source: Source;
+      requestId?: Id<'workoutRequests'>;
+    },
     null
   >('workoutDrafts:updateSet'),
   draftRemoveSet: makeFunctionReference<
     'mutation',
-    { rowId: string; setId: string; source: Source },
+    { rowId: string; setId: string; source: Source; requestId?: Id<'workoutRequests'> },
     null
   >('workoutDrafts:removeSet'),
   draftUpdateNotes: makeFunctionReference<
     'mutation',
-    { rowId: string; notes: string; source: Source },
+    { rowId: string; notes: string; source: Source; requestId?: Id<'workoutRequests'> },
     null
   >('workoutDrafts:updateExerciseNotes'),
   draftReorder: makeFunctionReference<
     'mutation',
-    { orderedRowIds: string[]; source: Source },
+    { orderedRowIds: string[]; source: Source; requestId?: Id<'workoutRequests'> },
     null
   >('workoutDrafts:reorderExercises'),
-  draftUndo: makeFunctionReference<'mutation', { source: Source }, string>(
-    'workoutDrafts:undoLastAction',
-  ),
+  draftUndo: makeFunctionReference<
+    'mutation',
+    { source: Source; requestId?: Id<'workoutRequests'> },
+    string
+  >('workoutDrafts:undoLastAction'),
+  conversation: makeFunctionReference<
+    'query',
+    { mode: 'workout' | 'analysis' },
+    { role: 'user' | 'assistant'; content: string }[]
+  >('aiMessages:conversation'),
   messageAppend: makeFunctionReference<
     'mutation',
     {
