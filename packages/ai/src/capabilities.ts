@@ -1,4 +1,8 @@
 export const workoutToolNames = [
+  'getCurrentDraft',
+  'getRecentWorkouts',
+  'getWorkout',
+  'getExerciseHistory',
   'searchUserExercises',
   'createUserExercise',
   'updateUserExercise',
@@ -8,7 +12,6 @@ export const workoutToolNames = [
   'removeSet',
   'updateExerciseNotes',
   'reorderExercises',
-  'undoLastDraftAction',
 ] as const;
 
 export const analysisToolNames = [

@@ -393,6 +393,10 @@ export const undoLastAction = mutation({
   args: { requestId: v.optional(v.id('workoutRequests')), source: eventSourceValidator },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
+    // Snapshot rollback can erase a whole successfully added batch. AI edits
+    // must target explicit rows/sets, including calls from older running actions.
+    if (args.source === 'ai')
+      throw new ConvexError('AI cannot roll back a draft. Use explicit exercise or set deletion.');
     const draft = await requireCurrent(ctx, user._id, args);
     const events = await ctx.db
       .query('draftEvents')

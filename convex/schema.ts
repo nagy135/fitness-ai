@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
+  aiSettingsValidator,
   draftEventTypeValidator,
   draftExerciseValidator,
   draftSnapshotValidator,
@@ -40,6 +41,7 @@ export default defineSchema({
     authUserId: v.string(),
     displayName: v.optional(v.string()),
     units: v.union(v.literal('metric'), v.literal('imperial')),
+    aiSettings: v.optional(aiSettingsValidator),
     createdAt: v.number(),
   }).index('by_auth_user', ['authUserId']),
 
@@ -62,6 +64,7 @@ export default defineSchema({
 
   workoutDrafts: defineTable({
     userId: v.id('userProfiles'),
+    name: v.optional(v.string()),
     editingWorkoutId: v.optional(v.id('workouts')),
     date: v.string(),
     status: v.union(v.literal('active'), v.literal('confirming')),
@@ -75,6 +78,7 @@ export default defineSchema({
 
   workouts: defineTable({
     userId: v.id('userProfiles'),
+    name: v.optional(v.string()),
     sourceDraftId: v.id('workoutDrafts'),
     performedAt: v.number(),
     exercises: v.array(

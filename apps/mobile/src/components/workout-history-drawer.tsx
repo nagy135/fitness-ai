@@ -15,6 +15,7 @@ import { groupWorkoutsByDay, historyDayKey } from '@/features/workout/history-ca
 
 interface WorkoutHistoryItem {
   _id: Id<'workouts'>;
+  name?: string;
   performedAt: number;
   notes?: string;
   exercises: {
@@ -162,6 +163,11 @@ export function WorkoutHistoryDrawer({
                     onEdit();
                   }}
                 />
+                {workout.name ? (
+                  <Text className="mt-2 text-xl font-bold text-ink dark:text-ink-dark">
+                    {workout.name}
+                  </Text>
+                ) : null}
                 {expanded ? (
                   <View className="mt-4 gap-3">
                     {workout.exercises.map((exercise, index) => (

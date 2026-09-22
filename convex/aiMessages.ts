@@ -51,23 +51,6 @@ export const recent = query({
   },
 });
 
-// Model context is intentionally separate from the paginated conversation drawer.
-export const conversation = query({
-  args: { mode },
-  handler: async (ctx, args) => {
-    const user = await requireUserProfile(ctx);
-    const messages = await ctx.db
-      .query('aiMessages')
-      .withIndex('by_user_mode', (q) => q.eq('userId', user._id).eq('mode', args.mode))
-      .order('asc')
-      .collect();
-    return messages.map(({ role, text, chart }) => ({
-      role,
-      content: chart ? `${text}\n\nCHART: ${JSON.stringify(chart)}` : text,
-    }));
-  },
-});
-
 // Reuse an unacknowledged submission even after an app restart or lost response.
 // Acknowledging the outcome allows a later, intentional identical prompt.
 export const prepareWorkoutRequest = mutation({

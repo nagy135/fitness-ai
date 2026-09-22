@@ -48,7 +48,7 @@ fi
 # admin key, even when its value is empty.
 unset CONVEX_DEPLOYMENT
 
-for name in AI_PROVIDER AI_MODEL OPENROUTER_API_KEY; do
+for name in AI_PROVIDER OPENROUTER_API_KEY; do
   value="$(read_env_value "$name" || true)"
   if [[ -z "$value" ]]; then
     echo "$name is missing or empty in $env_file" >&2
@@ -60,4 +60,4 @@ for name in AI_PROVIDER AI_MODEL OPENROUTER_API_KEY; do
     pnpm convex env set "$name" "$value"
 done
 
-echo "Synced AI_PROVIDER, AI_MODEL, and OPENROUTER_API_KEY to self-hosted Convex."
+echo "Synced AI_PROVIDER and OPENROUTER_API_KEY to self-hosted Convex."

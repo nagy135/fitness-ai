@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MutationCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { requireUserProfile } from './lib/auth';
-import { confirmDraft, remove } from './workouts';
+import { confirmDraft, namingContext, remove } from './workouts';
 
 vi.mock('./lib/auth', () => ({ requireUserProfile: vi.fn() }));
 
@@ -32,6 +32,80 @@ beforeEach(() => {
     authUserId: 'auth-user-1',
     units: 'metric',
     createdAt: 0,
+  });
+});
+
+describe('workout naming context', () => {
+  const contextHandler = (
+    namingContext as unknown as {
+      _handler: (
+        ctx: MutationCtx,
+        args: { draftId: Id<'workoutDrafts'> },
+      ) => Promise<{
+        exercises: string[];
+        previousWorkouts: { name: string; exercises: string[] }[];
+      }>;
+    }
+  )._handler;
+
+  function setup(editing = false) {
+    const recent = Array.from({ length: 7 }, (_, index) => ({
+      _id: index === 0 ? workoutId : `workout-${index + 1}`,
+      name: index === 0 || index === 6 ? 'Push' : undefined,
+      exercises: [{ nameSnapshot: `Exercise ${index}` }],
+    }));
+    const eq = vi.fn().mockReturnThis();
+    const take = vi.fn(async (limit: number) => recent.slice(0, limit));
+    const order = vi.fn().mockReturnValue({ take });
+    db.query.mockImplementation((table: string) => ({
+      withIndex: (_index: string, build: (q: unknown) => unknown) => {
+        build({ eq });
+        return table === 'workoutDrafts'
+          ? {
+              collect: async () => [
+                {
+                  _id: draftId,
+                  status: 'active',
+                  editingWorkoutId: editing ? workoutId : undefined,
+                  exercises: [{ name: 'Push-ups' }],
+                },
+              ],
+            }
+          : { order };
+      },
+    }));
+    return { eq, take, order };
+  }
+
+  it('reads exactly the last five workouts, including unnamed ones, scoped to the authenticated user', async () => {
+    const { eq, take, order } = setup();
+    const result = await contextHandler(ctx, { draftId });
+    expect(requireUserProfile).toHaveBeenCalledWith(ctx);
+    expect(eq.mock.calls.every(([field, value]) => field === 'userId' && value === userId)).toBe(
+      true,
+    );
+    expect(order).toHaveBeenCalledWith('desc');
+    expect(take).toHaveBeenCalledWith(5);
+    expect(result.exercises).toEqual(['Push-ups']);
+    expect(result.previousWorkouts).toHaveLength(5);
+    expect(result.previousWorkouts.map(({ name }) => name)).toEqual(['Push', '', '', '', '']);
+    expect(result.previousWorkouts[0].exercises).toEqual(['Exercise 0']);
+  });
+
+  it('excludes the workout being edited without reaching beyond five other sessions', async () => {
+    const { take } = setup(true);
+    const result = await contextHandler(ctx, { draftId });
+    expect(take).toHaveBeenCalledWith(6);
+    expect(result.previousWorkouts).toHaveLength(5);
+    expect(result.previousWorkouts.every(({ name }) => name === '')).toBe(true);
+  });
+
+  it('rejects foreign or stale draft IDs before reading history', async () => {
+    setup();
+    await expect(
+      contextHandler(ctx, { draftId: 'foreign' as Id<'workoutDrafts'> }),
+    ).rejects.toThrow('Workout draft not found');
+    expect(db.query).not.toHaveBeenCalledWith('workouts');
   });
 });
 

@@ -15,7 +15,7 @@ export function getTrustedOrigins(siteUrl?: string) {
   );
   const configuredOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
     .split(',')
-    .map((origin) => origin.trim())
+    .map((origin: string) => origin.trim())
     .filter(Boolean);
 
   return [

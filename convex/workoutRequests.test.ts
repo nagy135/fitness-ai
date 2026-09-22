@@ -5,13 +5,14 @@ import { requireUserProfile } from './lib/auth';
 import {
   acknowledgeWorkoutRequest,
   beginWorkoutRequest,
-  conversation,
+  recent,
   finishWorkoutRequest,
   prepareWorkoutRequest,
 } from './aiMessages';
 import { beginEdit, cancelEdit, confirmDraft, remove as deleteWorkout } from './workouts';
 import {
   addExercises,
+  removeExercise,
   removeSet,
   updateSet,
   currentForUser,
@@ -33,8 +34,8 @@ const finish = handler<{ requestId: Id<'workoutRequests'>; text: string; failed:
   finishWorkoutRequest,
 );
 const acknowledge = handler<{ requestId: Id<'workoutRequests'> }, void>(acknowledgeWorkoutRequest);
-const history = handler<{ mode: 'workout' | 'analysis' }, { role: string; content: string }[]>(
-  conversation,
+const history = handler<{ mode: 'workout' | 'analysis'; limit?: number }, Doc<'aiMessages'>[]>(
+  recent,
 );
 const add = handler<
   {
@@ -45,6 +46,15 @@ const add = handler<
   string[]
 >(addExercises);
 const remove = handler<{ rowId: string; setId: string; source: 'user_ui' }, void>(removeSet);
+const aiUndo = handler<{ source: 'ai'; requestId: Id<'workoutRequests'> }, void>(undoLastAction);
+const aiRemoveExercise = handler<
+  { rowId: string; source: 'ai'; requestId: Id<'workoutRequests'> },
+  void
+>(removeExercise);
+const aiRemoveSet = handler<
+  { rowId: string; setId: string; source: 'ai'; requestId: Id<'workoutRequests'> },
+  void
+>(removeSet);
 
 const userId = 'user-1' as Id<'userProfiles'>;
 const draftId = 'draft-1' as Id<'workoutDrafts'>;
@@ -131,6 +141,80 @@ function batch(requestId: Id<'workoutRequests'>) {
 }
 
 describe('durable workout submissions', () => {
+  it('preserves committed exercises and sets when AI attempts rollback and the response fails', async () => {
+    rows[0].exercises = [
+      {
+        rowId: 'existing',
+        exerciseId,
+        name: 'Push-ups',
+        sets: [{ setId: 'existing-set', reps: 5 }],
+      },
+    ];
+    const otherId = 'exercise-2' as Id<'exercises'>;
+    rows.push({ _id: otherId, table: 'exercises', userId, name: 'Squats', trackingType: 'reps' });
+    const requestId = await running();
+    await add(ctx, {
+      ...batch(requestId),
+      exercises: [...batch(requestId).exercises, { exerciseId: otherId, sets: [{ reps: 15 }] }],
+    });
+    const committed = structuredClone(await currentForUser(ctx, userId));
+    const events = structuredClone(rows.filter((row) => row.table === 'draftEvents'));
+    await expect(aiUndo(ctx, { source: 'ai', requestId })).rejects.toThrow('AI cannot roll back');
+    await finish(ctx, { requestId, text: 'Response failed after saving.', failed: true });
+    expect(await currentForUser(ctx, userId)).toEqual(committed);
+    expect(committed!.exercises.map((row) => row.sets.map((set) => set.reps))).toEqual([
+      [5, 10, 10],
+      [15],
+    ]);
+    expect(rows.filter((row) => row.table === 'draftEvents')).toEqual(events);
+  });
+
+  it('retains committed additions when a request expires', async () => {
+    const requestId = await running();
+    await add(ctx, batch(requestId));
+    const committed = structuredClone(await currentForUser(ctx, userId));
+    rows.find((row) => row._id === requestId)!.expiresAt = 0;
+    expect((await begin(ctx, { requestId })).execute).toBe(false);
+    expect(await currentForUser(ctx, userId)).toEqual(committed);
+  });
+
+  it('deletes only explicitly targeted sets and exercise rows and records each deletion', async () => {
+    const firstRequest = await running();
+    const otherId = 'exercise-2' as Id<'exercises'>;
+    rows.push({ _id: otherId, table: 'exercises', userId, name: 'Squats', trackingType: 'reps' });
+    await add(ctx, {
+      ...batch(firstRequest),
+      exercises: [...batch(firstRequest).exercises, { exerciseId: otherId, sets: [{ reps: 15 }] }],
+    });
+    await finish(ctx, { requestId: firstRequest, text: 'Added.', failed: false });
+    const before = structuredClone((await currentForUser(ctx, userId))!);
+    const [pushups, squats] = before.exercises;
+    const requestId = await running('Remove the first push-up set and squats');
+    await aiRemoveSet(ctx, {
+      requestId,
+      source: 'ai',
+      rowId: pushups.rowId,
+      setId: pushups.sets[0].setId,
+    });
+    expect((await currentForUser(ctx, userId))!.exercises).toEqual([
+      { ...pushups, sets: [pushups.sets[1]] },
+      squats,
+    ]);
+    await aiRemoveExercise(ctx, { requestId, source: 'ai', rowId: squats.rowId });
+    expect((await currentForUser(ctx, userId))!.exercises).toEqual([
+      { ...pushups, sets: [pushups.sets[1]] },
+    ]);
+    expect(rows.filter((row) => row.table === 'draftEvents' && row.type === 'remove_set')).toEqual([
+      expect.objectContaining({
+        source: 'ai',
+        payload: { rowId: pushups.rowId, setId: pushups.sets[0].setId },
+      }),
+    ]);
+    expect(
+      rows.filter((row) => row.table === 'draftEvents' && row.type === 'remove_exercise'),
+    ).toEqual([expect.objectContaining({ source: 'ai', payload: { rowId: squats.rowId } })]);
+  });
+
   it('recovers a lost completed response without re-executing or re-appending the user message', async () => {
     const requestId = await running();
     await add(ctx, batch(requestId));
@@ -229,8 +313,8 @@ describe('durable workout submissions', () => {
   });
 });
 
-describe('full model conversation', () => {
-  it('includes more than 50 messages in chronological order with user and mode isolation', async () => {
+describe('conversation drawer history', () => {
+  it('keeps a bounded display history with user and mode isolation', async () => {
     for (let i = 60; i >= 0; i--)
       rows.push({
         _id: `message-${i}`,
@@ -257,19 +341,19 @@ describe('full model conversation', () => {
       role: 'user',
       text: 'analysis',
     });
-    const messages = await history(ctx, { mode: 'workout' });
-    expect(messages).toHaveLength(61);
-    expect(messages[0]).toEqual({ role: 'user', content: '0' });
-    expect(messages[60]).toEqual({ role: 'user', content: '60' });
+    const messages = await history(ctx, { mode: 'workout', limit: 100 });
+    expect(messages).toHaveLength(50);
+    expect(messages[0]).toMatchObject({ role: 'user', text: '60' });
+    expect(messages[49]).toMatchObject({ role: 'assistant', text: '11' });
     expect(await history(ctx, { mode: 'analysis' })).toEqual([
-      { role: 'user', content: 'analysis' },
+      expect.objectContaining({ role: 'user', text: 'analysis' }),
     ]);
   });
 });
 
 const editHistory = handler<{ workoutId: Id<'workouts'> }, Id<'workoutDrafts'>>(beginEdit);
 const cancelHistory = handler<{ draftId: Id<'workoutDrafts'> }, void>(cancelEdit);
-const save = handler<{ draftId: Id<'workoutDrafts'> }, Id<'workouts'>>(confirmDraft);
+const save = handler<{ draftId: Id<'workoutDrafts'>; name?: string }, Id<'workouts'>>(confirmDraft);
 const erase = handler<{ workoutId: Id<'workouts'> }, void>(deleteWorkout);
 const update = handler<
   {
@@ -300,6 +384,37 @@ function seedWorkout() {
 
 describe('history editing through shared workout tools', () => {
   beforeEach(seedWorkout);
+
+  it('prefills the saved name and changes it only at explicit confirmation', async () => {
+    rows.find((row) => row._id === savedId)!.name = 'Push A';
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    expect((await currentForUser(ctx, userId))?.name).toBe('Push A');
+    expect(rows.find((row) => row._id === savedId)?.name).toBe('Push A');
+    await save(ctx, { draftId: editingId, name: '  Upper body  ' });
+    expect(rows.find((row) => row._id === savedId)?.name).toBe('Upper body');
+    await save(ctx, { draftId: editingId, name: 'Late retry' });
+    expect(rows.find((row) => row._id === savedId)?.name).toBe('Upper body');
+  });
+
+  it('preserves names for older clients and allows explicitly clearing a name', async () => {
+    rows.find((row) => row._id === savedId)!.name = 'Push A';
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    await save(ctx, { draftId: editingId });
+    expect(rows.find((row) => row._id === savedId)?.name).toBe('Push A');
+    const nextId = await editHistory(ctx, { workoutId: savedId });
+    await save(ctx, { draftId: nextId, name: '   ' });
+    expect(rows.find((row) => row._id === savedId)?.name).toBeUndefined();
+  });
+
+  it('saves a new workout name and rejects oversized names without consuming the draft', async () => {
+    const requestId = await running();
+    await add(ctx, batch(requestId));
+    await finish(ctx, { requestId, text: 'Done', failed: false });
+    await expect(save(ctx, { draftId, name: 'x'.repeat(101) })).rejects.toThrow('100 characters');
+    expect((await currentForUser(ctx, userId))?._id).toBe(draftId);
+    const id = await save(ctx, { draftId, name: '  Push B  ' });
+    expect(rows.find((row) => row._id === id)?.name).toBe('Push B');
+  });
 
   it('reuses an editing draft and cancels without changing history or the ordinary draft', async () => {
     rows[0].exercises = [

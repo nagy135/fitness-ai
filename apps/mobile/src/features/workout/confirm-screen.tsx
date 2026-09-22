@@ -5,17 +5,19 @@ import { useMutation, useQuery } from 'convex/react';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import { api } from '@fitness/convex/api';
 import { normalizeSetForTrackingType } from '@fitness/domain';
-import { Button, IconButton } from '@fitness/ui';
+import { Button, IconButton, Input } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { useAppTheme } from '@/components/theme-provider';
 import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { formatSet } from './history-format';
 import { DisplayText } from '@/components/display-text';
+import { useWorkoutName } from './use-workout-name';
 
 export default function ConfirmWorkoutScreen() {
   const { colors } = useAppTheme();
   const draft = useQuery(api.workoutDrafts.current, {});
+  const { name, setName, suggesting, suggestionFailed } = useWorkoutName(draft);
   const catalog = useQuery(api.exercises.list, { includeArchived: true });
   const confirm = useMutation(api.workouts.confirmDraft);
   const [saving, setSaving] = useState(false);
@@ -33,7 +35,7 @@ export default function ConfirmWorkoutScreen() {
     setSaving(true);
     setError(undefined);
     try {
-      await confirm({ draftId: draft._id });
+      await confirm({ draftId: draft._id, name });
       router.replace(draft.editingWorkoutId ? '/?mode=workout' : '/?mode=analysis');
     } catch {
       setError('Your workout could not be saved. Check your connection and try again.');
@@ -58,7 +60,33 @@ export default function ConfirmWorkoutScreen() {
             : 'Check your sets below. You can edit saved workouts from history.'}
         </Text>
       </View>
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 py-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 py-4"
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="gap-2">
+          <Input
+            label="Workout name (optional)"
+            placeholder="Name this workout"
+            value={name}
+            onChangeText={setName}
+            maxLength={100}
+            editable={!saving}
+            autoCapitalize="sentences"
+            returnKeyType="done"
+          />
+          <Text
+            accessibilityLiveRegion="polite"
+            className="text-sm text-muted dark:text-muted-dark"
+          >
+            {suggesting
+              ? 'Looking for a name from your last 5 workouts…'
+              : suggestionFailed
+                ? 'Suggestion unavailable. Add a name or leave it blank.'
+                : 'Suggestions follow names and exercises from your last 5 workouts. Edit or leave blank.'}
+          </Text>
+        </View>
         {draft?.exercises.map((exercise) => {
           const trackingType =
             catalog.find((item) => item._id === exercise.exerciseId)?.trackingType ?? 'custom';

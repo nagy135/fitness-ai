@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { normalizeSetForTrackingType } from '@fitness/domain';
-import { mutation, query } from './_generated/server';
+import { internalQuery, mutation, query } from './_generated/server';
 import { assertWorkoutRequest } from './lib/workoutRequest';
 import { currentForUser } from './workoutDrafts';
 import { validateTrackedSet } from './lib/draftValidation';
@@ -56,6 +56,7 @@ export const beginEdit = mutation({
     return ctx.db.insert('workoutDrafts', {
       userId: user._id,
       editingWorkoutId: workout._id,
+      name: workout.name,
       date: new Date(workout.performedAt).toISOString().slice(0, 10),
       status: 'active',
       exercises: workout.exercises.map((row) => ({
@@ -86,7 +87,7 @@ export const cancelEdit = mutation({
 });
 
 export const confirmDraft = mutation({
-  args: { draftId: v.id('workoutDrafts') },
+  args: { draftId: v.id('workoutDrafts'), name: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
     const receipt = await ctx.db
@@ -99,6 +100,9 @@ export const confirmDraft = mutation({
 
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) throw new ConvexError('Workout draft not found');
+    const name = (args.name ?? draft.name)?.trim() || undefined;
+    if (name && name.length > 100)
+      throw new ConvexError('Workout name must be 100 characters or fewer');
     await assertWorkoutRequest(ctx, user._id, draft._id, { source: 'user_ui' });
     if (draft.exercises.length === 0 || draft.exercises.every((row) => row.sets.length === 0)) {
       throw new ConvexError('Cannot confirm an empty workout');
@@ -130,13 +134,14 @@ export const confirmDraft = mutation({
       const workout = await ctx.db.get(draft.editingWorkoutId);
       if (!workout || workout.userId !== user._id) throw new ConvexError('Workout not found');
       workoutId = workout._id;
-      await ctx.db.patch(workoutId, { exercises, notes: draft.notes });
+      await ctx.db.patch(workoutId, { name, exercises, notes: draft.notes });
     } else {
       if ((await currentForUser(ctx, user._id))?._id !== draft._id)
         throw new ConvexError('Workout draft is not currently selected');
       workoutId = await ctx.db.insert('workouts', {
         userId: user._id,
         sourceDraftId: draft._id,
+        name,
         performedAt: Date.parse(`${draft.date}T12:00:00.000Z`),
         exercises,
         notes: draft.notes,
@@ -151,5 +156,30 @@ export const confirmDraft = mutation({
     });
     await ctx.db.delete(draft._id);
     return workoutId;
+  },
+});
+
+export const namingContext = internalQuery({
+  args: { draftId: v.id('workoutDrafts') },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const draft = await currentForUser(ctx, user._id);
+    if (!draft || draft._id !== args.draftId) throw new ConvexError('Workout draft not found');
+    const recent = await ctx.db
+      .query('workouts')
+      .withIndex('by_user_performed', (q) => q.eq('userId', user._id))
+      .order('desc')
+      .take(draft.editingWorkoutId ? 6 : 5);
+    return {
+      aiSettings: user.aiSettings,
+      exercises: draft.exercises.map(({ name }) => name),
+      previousWorkouts: recent
+        .filter((workout) => workout._id !== draft.editingWorkoutId)
+        .slice(0, 5)
+        .map((workout) => ({
+          name: workout.name ?? '',
+          exercises: workout.exercises.map(({ nameSnapshot }) => nameSnapshot),
+        })),
+    };
   },
 });

@@ -94,16 +94,6 @@ export const refs = {
     { orderedRowIds: string[]; source: Source; requestId?: Id<'workoutRequests'> },
     null
   >('workoutDrafts:reorderExercises'),
-  draftUndo: makeFunctionReference<
-    'mutation',
-    { source: Source; requestId?: Id<'workoutRequests'> },
-    string
-  >('workoutDrafts:undoLastAction'),
-  conversation: makeFunctionReference<
-    'query',
-    { mode: 'workout' | 'analysis' },
-    { role: 'user' | 'assistant'; content: string }[]
-  >('aiMessages:conversation'),
   messageAppend: makeFunctionReference<
     'mutation',
     {

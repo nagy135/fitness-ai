@@ -1,6 +1,15 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { requireAuthenticatedUser, requireUserProfile } from './lib/auth';
+import { aiSettingsValidator } from './model';
+
+export const updateAISettings = mutation({
+  args: { settings: aiSettingsValidator },
+  handler: async (ctx, { settings }) => {
+    const user = await requireUserProfile(ctx);
+    await ctx.db.patch(user._id, { aiSettings: settings });
+  },
+});
 
 export const current = query({
   args: {},

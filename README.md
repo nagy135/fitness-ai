@@ -46,9 +46,13 @@ Add your OpenRouter configuration to `.env.local`:
 
 ```dotenv
 AI_PROVIDER=openrouter
-AI_MODEL=openai/gpt-5.6-luna
 OPENROUTER_API_KEY=your-key-here
 ```
+
+Choose the model and reasoning effort in Settings → AI preferences. Preferences
+are saved per account and apply to logging, analysis, and name suggestions.
+New and existing accounts without saved preferences default to GPT-5.6 Terra / Low.
+The legacy `AI_MODEL` environment variable no longer overrides user preferences.
 
 Do not commit `.env.local`. AI and authentication secrets are server-only and must never use an `EXPO_PUBLIC_` prefix.
 
@@ -112,7 +116,7 @@ nix develop -c ./scripts/convex-self-hosted.sh env set SITE_URL http://localhost
 
 ### 7. Upload the AI configuration
 
-This command reads the three AI values from `.env.local` without printing the API key:
+This command reads the AI provider and API key from `.env.local` without printing the API key:
 
 ```bash
 nix develop -c ./scripts/sync-convex-ai-env.sh
@@ -195,6 +199,22 @@ For ordinary Expo Go usage on a phone, `SITE_URL=http://localhost:8081` can rema
 
 ## Build an installable Android APK
 
+### Local preview APK
+
+With the Android SDK/NDK installed, compile the signed preview APK on the Mac
+without using cloud build credits. The CLI downloads the existing signing
+credentials and preview environment; compilation runs locally. From the repo root:
+
+```bash
+mkdir -p dist
+ANDROID_HOME="$HOME/Library/Android/sdk" nix develop -c sh -c \
+  'cd apps/mobile && npx eas-cli@latest build --platform android --profile preview --local --non-interactive --output ../../dist/fitness-ai-preview.apk'
+```
+
+This only builds an APK. It does not deploy backend changes or install the app.
+If a feature adds backend functions or schema fields, deploy those separately
+before using that feature against a running backend.
+
 ### Voice input
 
 The prompt microphone uses `expo-speech-recognition` and the device's preferred
@@ -261,6 +281,35 @@ CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hoste
 
 This deployment has its own data; it does not contain the Mac's development
 accounts or workout history. Infrastructure is managed in `~/Code/nix-server`.
+
+AI actions emit structured JSON logs tagged `ai_timing`. Watch production timings with:
+
+```bash
+CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh logs --history 100 --success
+```
+
+Group events by `traceId`. `request_end.durationMs` measures the action handler;
+`stage_end` separates context queries, generation, and saving the response.
+`model_end` reports each model round trip (including SDK retries/backoff), input/output,
+reasoning and cached token counts when available; `tool_end` measures tool execution.
+`step_end` includes model and tool work. Analysis chart correction has its own pass.
+Context sizes are character counts, not token estimates. No prompts, workout contents,
+tool arguments/results, or error messages are added to these timing logs.
+
+Summary `modelMs` counts completed model calls; `toolMs` sums tool durations, which
+can overlap when tools run in parallel. Do not add nested stage/step/tool durations
+together. Failed stages and requests are marked; a start without a matching end can
+identify an interrupted call. Handler timings exclude phone/network latency and
+action startup; `--success` also shows Convex's function durations, including the
+client's preparation mutations. Logs are operational diagnostics, not a persistent
+analytics table; capture the stream during a test if you need to keep the results.
+
+AI requests use only the latest user message. Workout logging includes the fresh
+current draft and defined exercise catalog; saved workouts and exercise histories
+are retrieved through read-only tools when needed. Analysis retrieves saved training
+data through its read-only tools. Previous chat messages remain visible in the
+conversation drawer but are never loaded into model context. Follow-ups must name
+their target when it cannot be resolved from the current workout data.
 
 To browse or edit the nixpi database, open
 `https://fitness-ai-dashboard.infiniter.tech` and log in with

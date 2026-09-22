@@ -68,6 +68,7 @@ export const searchWorkouts = query({
     return workouts
       .filter(
         (workout) =>
+          workout.name?.toLocaleLowerCase('en-US').includes(needle) ||
           workout.notes?.toLocaleLowerCase('en-US').includes(needle) ||
           workout.exercises.some((exercise) =>
             exercise.nameSnapshot.toLocaleLowerCase('en-US').includes(needle),

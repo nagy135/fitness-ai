@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { ChevronDown, ChevronUp, List, Trash2 } from 'lucide-react-native';
-import { Button, IconButton } from '@fitness/ui';
+import { IconButton } from '@fitness/ui';
 import type { WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
@@ -117,30 +117,46 @@ export function WorkoutTable({
                 }}
                 className="mb-3 overflow-hidden rounded-[20px] bg-panel dark:bg-panel-dark"
               >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${exercise.name}, ${countLabel}`}
-                  accessibilityHint={exerciseOpen ? 'Hide sets' : 'Show sets to review or edit'}
-                  accessibilityState={{ expanded: exerciseOpen }}
-                  onPress={() => {
-                    pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
-                    setExpandedExercise(exerciseOpen ? undefined : exercise.rowId);
-                    setExpanded(undefined);
-                  }}
-                  className="min-h-[68px] flex-row items-center gap-3 px-4 py-4 active:bg-soft dark:active:bg-soft-dark"
-                >
-                  <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
-                    {exercise.name}{' '}
-                    <Text className="text-sm font-normal text-muted dark:text-muted-dark">
-                      ({countLabel})
+                <View className="flex-row items-center pr-2">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${exercise.name}, ${countLabel}`}
+                    accessibilityHint={exerciseOpen ? 'Hide sets' : 'Show sets to review or edit'}
+                    accessibilityState={{ expanded: exerciseOpen }}
+                    onPress={() => {
+                      pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
+                      setExpandedExercise(exerciseOpen ? undefined : exercise.rowId);
+                      setExpanded(undefined);
+                    }}
+                    className="min-h-[68px] flex-1 flex-row items-center gap-3 px-4 py-4 active:bg-soft dark:active:bg-soft-dark"
+                  >
+                    <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
+                      {exercise.name}{' '}
+                      <Text className="text-sm font-normal text-muted dark:text-muted-dark">
+                        ({countLabel})
+                      </Text>
                     </Text>
-                  </Text>
-                  {exerciseOpen ? (
-                    <ChevronUp size={20} color={colors.accent} />
-                  ) : (
-                    <ChevronDown size={20} color={colors.muted} />
-                  )}
-                </Pressable>
+                    {exerciseOpen ? (
+                      <ChevronUp size={20} color={colors.accent} />
+                    ) : (
+                      <ChevronDown size={20} color={colors.muted} />
+                    )}
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${exercise.name} from current workout`}
+                    accessibilityHint="Removes this exercise and all its sets from the draft"
+                    accessibilityState={{ disabled: busy }}
+                    disabled={busy}
+                    onPress={() => void onRemoveExercise(exercise.rowId)}
+                    className={`min-h-11 flex-row items-center gap-1 rounded-xl px-2 active:bg-soft dark:active:bg-soft-dark ${busy ? 'opacity-40' : ''}`}
+                  >
+                    <Trash2 size={18} color={colors.danger} />
+                    <Text className="text-sm font-semibold text-danger dark:text-danger-dark">
+                      Delete
+                    </Text>
+                  </Pressable>
+                </View>
                 {exerciseOpen ? (
                   <View className="border-t border-line dark:border-line-dark">
                     {exercise.sets.map((set, index) => {
@@ -243,13 +259,6 @@ export function WorkoutTable({
                         <Text className="text-sm text-muted dark:text-muted-dark">
                           Log a set below, or remove this exercise before saving.
                         </Text>
-                        <Button
-                          variant="secondary"
-                          disabled={busy}
-                          onPress={() => void onRemoveExercise(exercise.rowId)}
-                        >
-                          Remove exercise
-                        </Button>
                       </View>
                     ) : null}
                     {exercise.notes ? (

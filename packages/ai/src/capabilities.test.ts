@@ -10,6 +10,12 @@ import {
 describe('AI capability boundary', () => {
   it('does not expose workout confirmation or arbitrary database access', () => {
     expect(workoutToolNames).not.toContain('confirmWorkout');
+    expect(workoutToolNames).not.toContain('undoLastDraftAction');
+    expect(workoutToolNames).toContain('removeExerciseFromDraft');
+    expect(workoutToolNames).toContain('removeSet');
+    expect(workoutToolNames).toContain('getCurrentDraft');
+    expect(workoutToolNames).toContain('getRecentWorkouts');
+    expect(workoutToolNames).toContain('getExerciseHistory');
     expect([...workoutToolNames, ...analysisToolNames]).not.toContain('executeConvexQuery');
     expect(capabilityMatrix.workout.modifyConfirmedHistory).toBe(false);
     expect(capabilityMatrix.analysis.modifyCurrentDraft).toBe(false);
