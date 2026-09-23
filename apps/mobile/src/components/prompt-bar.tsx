@@ -74,7 +74,7 @@ export function PromptBar({
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Send prompt"
+          accessibilityLabel={processing ? 'Waiting for AI response' : 'Send prompt'}
           accessibilityState={{ disabled, busy: processing }}
           testID="send-prompt"
           className={`h-11 w-11 items-center justify-center rounded-xl bg-accent dark:bg-accent-dark ${disabled && !processing ? 'opacity-40' : ''}`}
@@ -82,7 +82,11 @@ export function PromptBar({
           onPress={() => void submit()}
         >
           {processing ? (
-            <ActivityIndicator color={colors.accentInk} size="small" />
+            <ActivityIndicator
+              color={colors.accentInk}
+              size="small"
+              style={{ transform: [{ scale: 2 }] }}
+            />
           ) : (
             <ArrowUp color={colors.accentInk} size={22} />
           )}
