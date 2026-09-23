@@ -15,16 +15,5 @@ export function formatSet(set: WorkoutHistorySet) {
 }
 
 export function formatSetSummary(sets: WorkoutHistorySet[]) {
-  return sets
-    .map((set) => {
-      const parts: string[] = [];
-      if (set.reps !== undefined) {
-        parts.push(`${formatNumber(set.reps)}${set.weightKg === undefined ? ' reps' : ''}`);
-      }
-      if (set.weightKg !== undefined) parts.push(`${formatNumber(set.weightKg)}kg`);
-      if (set.durationSeconds !== undefined) parts.push(`${formatNumber(set.durationSeconds)}sec`);
-      if (set.distanceMeters !== undefined) parts.push(`${formatNumber(set.distanceMeters)}m`);
-      return parts.join('x') || 'No measurements';
-    })
-    .join(', ');
+  return sets.map(formatSet).join(', ');
 }

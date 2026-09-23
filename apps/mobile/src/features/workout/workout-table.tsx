@@ -6,6 +6,7 @@ import type { WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
 import { DisplayText } from '@/components/display-text';
+import { SetMeasurement } from './set-measurement';
 
 type DraftSet = WorkoutSet & { setId: string };
 interface DraftExercise {
@@ -178,12 +179,7 @@ export function WorkoutTable({
                                 {index + 1}
                               </Text>
                             </View>
-                            <DisplayText
-                              className="flex-1 text-[28px] leading-9"
-                              style={{ fontVariant: ['tabular-nums'] }}
-                            >
-                              {formatSet(set)}
-                            </DisplayText>
+                            <SetMeasurement set={set} className="flex-1 leading-9" />
                             {open ? (
                               <ChevronUp size={18} color={colors.muted} />
                             ) : (

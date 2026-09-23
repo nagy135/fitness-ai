@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
-  formatSet,
   formatSetSummary,
   type WorkoutHistorySet,
 } from '@/features/workout/history-format';
+import { SetMeasurement } from '@/features/workout/set-measurement';
 import { useAppTheme } from './theme-provider';
 
 export function WorkoutHistoryExercise({
@@ -23,7 +23,7 @@ export function WorkoutHistoryExercise({
     <View className="rounded-2xl bg-soft dark:bg-soft-dark">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${name}, ${sets.map(formatSet).join(', ') || 'No sets'}`}
+        accessibilityLabel={`${name}, ${formatSetSummary(sets) || 'No sets'}`}
         accessibilityHint={expanded ? 'Collapse set details' : 'Expand set details'}
         accessibilityState={{ expanded }}
         onPress={() => setExpanded((value) => !value)}
@@ -32,7 +32,14 @@ export function WorkoutHistoryExercise({
         <Text className="flex-1 text-[15px] leading-6 text-ink dark:text-ink-dark">
           <Text className="font-bold">{name}</Text>{' '}
           <Text className="text-muted dark:text-muted-dark">
-            ({formatSetSummary(sets) || 'No sets'})
+            ({sets.length
+              ? sets.map((set, index) => (
+                  <Text key={index}>
+                    {index > 0 ? ',  ' : null}
+                    <SetMeasurement set={set} compact />
+                  </Text>
+                ))
+              : 'No sets'})
           </Text>
         </Text>
         <Chevron color={colors.muted} size={18} />
@@ -45,9 +52,7 @@ export function WorkoutHistoryExercise({
                 <Text className="w-12 text-sm leading-5 text-muted dark:text-muted-dark">
                   Set {index + 1}
                 </Text>
-                <Text className="flex-1 text-sm font-semibold leading-5 text-ink dark:text-ink-dark">
-                  {formatSet(set)}
-                </Text>
+                <SetMeasurement set={set} compact className="flex-1 leading-5" />
               </View>
             ))
           ) : (

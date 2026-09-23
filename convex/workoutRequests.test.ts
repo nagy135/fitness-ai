@@ -9,7 +9,13 @@ import {
   finishWorkoutRequest,
   prepareWorkoutRequest,
 } from './aiMessages';
-import { beginEdit, cancelEdit, confirmDraft, remove as deleteWorkout } from './workouts';
+import {
+  beginEdit,
+  cancelEdit,
+  confirmDraft,
+  discardDraft,
+  remove as deleteWorkout,
+} from './workouts';
 import {
   addExercises,
   removeExercise,
@@ -354,6 +360,7 @@ describe('conversation drawer history', () => {
 const editHistory = handler<{ workoutId: Id<'workouts'> }, Id<'workoutDrafts'>>(beginEdit);
 const cancelHistory = handler<{ draftId: Id<'workoutDrafts'> }, void>(cancelEdit);
 const save = handler<{ draftId: Id<'workoutDrafts'>; name?: string }, Id<'workouts'>>(confirmDraft);
+const discard = handler<{ draftId: Id<'workoutDrafts'> }, void>(discardDraft);
 const erase = handler<{ workoutId: Id<'workouts'> }, void>(deleteWorkout);
 const update = handler<
   {
@@ -381,6 +388,50 @@ function seedWorkout() {
     ],
   });
 }
+
+describe('discarding from workout review', () => {
+  it('removes the current exercises and starts a fresh draft that cannot receive old requests', async () => {
+    rows[0].name = 'Draft name';
+    rows[0].notes = 'Draft notes';
+    rows[0].exercises = [
+      { rowId: 'row-1', exerciseId, name: 'Push-ups', sets: [{ setId: 'set-1', reps: 10 }] },
+    ];
+    const queuedRequest = await prepare(ctx, { prompt: 'Add more push-ups' });
+
+    await discard(ctx, { draftId });
+
+    const next = await currentForUser(ctx, userId);
+    expect(next).toMatchObject({ userId, status: 'active', exercises: [] });
+    expect(next?._id).not.toBe(draftId);
+    expect(next?.name).toBeUndefined();
+    expect(next?.notes).toBeUndefined();
+    expect(rows.find((row) => row._id === draftId)).toBeUndefined();
+    await expect(begin(ctx, { requestId: queuedRequest })).rejects.toThrow('no longer exists');
+    expect(await prepare(ctx, { prompt: 'Add more push-ups' })).not.toBe(queuedRequest);
+  });
+
+  it('discards a history edit without touching the saved workout or ordinary draft', async () => {
+    seedWorkout();
+    rows[0].exercises = [
+      { rowId: 'ordinary', exerciseId, name: 'Push-ups', sets: [{ setId: 'set-1', reps: 5 }] },
+    ];
+    const ordinary = structuredClone(rows[0]);
+    const saved = structuredClone(rows.find((row) => row._id === savedId));
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+
+    await discard(ctx, { draftId: editingId });
+
+    expect(await currentForUser(ctx, userId)).toEqual(ordinary);
+    expect(rows.find((row) => row._id === savedId)).toEqual(saved);
+    expect(rows.find((row) => row._id === editingId)).toBeUndefined();
+  });
+
+  it('waits for an active AI write before discarding', async () => {
+    await running();
+    await expect(discard(ctx, { draftId })).rejects.toThrow('Wait for the workout request');
+    expect((await currentForUser(ctx, userId))?._id).toBe(draftId);
+  });
+});
 
 describe('history editing through shared workout tools', () => {
   beforeEach(seedWorkout);

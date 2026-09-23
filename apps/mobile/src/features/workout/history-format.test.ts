@@ -9,7 +9,7 @@ describe('workout measurement summaries', () => {
         { weightKg: 80, reps: 8 },
         { weightKg: 80, reps: 6 },
       ]),
-    ).toBe('8x80kg, 6x80kg');
+    ).toBe('80 kg × 8 reps, 80 kg × 6 reps');
   });
   it('preserves duration and distance together', () => {
     expect(formatSet({ durationSeconds: 300, distanceMeters: 1000 })).toBe('300 sec × 1000 m');

@@ -10,9 +10,9 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { useAppTheme } from '@/components/theme-provider';
 import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
-import { formatSet } from './history-format';
 import { DisplayText } from '@/components/display-text';
 import { useWorkoutName } from './use-workout-name';
+import { SetMeasurement } from './set-measurement';
 
 export default function ConfirmWorkoutScreen() {
   const { colors } = useAppTheme();
@@ -20,7 +20,9 @@ export default function ConfirmWorkoutScreen() {
   const { name, setName, suggesting, suggestionFailed } = useWorkoutName(draft);
   const catalog = useQuery(api.exercises.list, { includeArchived: true });
   const confirm = useMutation(api.workouts.confirmDraft);
+  const discard = useMutation(api.workouts.discardDraft);
   const [saving, setSaving] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [error, setError] = useState<string>();
   const locked = useRef(false);
   if (draft === undefined || catalog === undefined)
@@ -39,6 +41,21 @@ export default function ConfirmWorkoutScreen() {
       router.replace(draft.editingWorkoutId ? '/?mode=workout' : '/?mode=analysis');
     } catch {
       setError('Your workout could not be saved. Check your connection and try again.');
+    } finally {
+      locked.current = false;
+      setSaving(false);
+    }
+  }
+  async function discardAndExit() {
+    if (!draft || !confirmingDiscard || locked.current) return;
+    locked.current = true;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await discard({ draftId: draft._id });
+      router.replace('/?mode=analysis');
+    } catch {
+      setError('Could not discard this workout. Check your connection and try again.');
     } finally {
       locked.current = false;
       setSaving(false);
@@ -104,9 +121,10 @@ export default function ConfirmWorkoutScreen() {
                     <Text className="w-10 text-sm text-muted dark:text-muted-dark">
                       Set {index + 1}
                     </Text>
-                    <DisplayText className="flex-1 text-[28px] leading-9">
-                      {formatSet(normalizeSetForTrackingType(set, trackingType))}
-                    </DisplayText>
+                    <SetMeasurement
+                      set={normalizeSetForTrackingType(set, trackingType)}
+                      className="flex-1 leading-9"
+                    />
                     <Check color={colors.accent} size={17} />
                   </View>
                 ))}
@@ -141,6 +159,45 @@ export default function ConfirmWorkoutScreen() {
         <Button variant="ghost" disabled={saving} onPress={back}>
           Continue workout
         </Button>
+        {confirmingDiscard ? (
+          <View accessibilityLiveRegion="polite" className="gap-3 rounded-2xl bg-soft p-4 dark:bg-soft-dark">
+            <Text className="text-base font-bold text-ink dark:text-ink-dark">
+              {draft?.editingWorkoutId ? 'Discard changes?' : 'Discard this workout?'}
+            </Text>
+            <Text className="text-sm leading-5 text-muted dark:text-muted-dark">
+              {draft?.editingWorkoutId
+                ? 'Your saved workout will stay unchanged. You’ll leave workout mode.'
+                : 'All exercises and sets in this draft will be removed. You’ll leave workout mode.'}
+            </Text>
+            <View className="flex-row gap-2">
+              <Button
+                className="flex-1"
+                variant="secondary"
+                disabled={saving}
+                onPress={() => setConfirmingDiscard(false)}
+              >
+                Keep workout
+              </Button>
+              <Button
+                className="flex-1"
+                variant="destructive"
+                loading={saving}
+                onPress={() => void discardAndExit()}
+              >
+                Discard & exit
+              </Button>
+            </View>
+          </View>
+        ) : (
+          <Button
+            variant="ghost"
+            textClassName="text-danger dark:text-danger-dark"
+            disabled={saving}
+            onPress={() => setConfirmingDiscard(true)}
+          >
+            {draft?.editingWorkoutId ? 'Discard changes & exit' : 'Discard workout & exit'}
+          </Button>
+        )}
       </View>
     </Screen>
   );

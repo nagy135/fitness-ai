@@ -86,6 +86,32 @@ export const cancelEdit = mutation({
   },
 });
 
+// Discard the draft shown in review. Keep the ordinary draft while editing
+// history; otherwise start a fresh empty draft so old AI requests stay fenced.
+export const discardDraft = mutation({
+  args: { draftId: v.id('workoutDrafts') },
+  handler: async (ctx, { draftId }) => {
+    const user = await requireUserProfile(ctx);
+    const draft = await ctx.db.get(draftId);
+    if (!draft) return;
+    if (draft.userId !== user._id || (await currentForUser(ctx, user._id))?._id !== draftId)
+      throw new ConvexError('Workout draft not found');
+    await assertWorkoutRequest(ctx, user._id, draftId, { source: 'user_ui' });
+    await ctx.db.delete(draftId);
+    if (!draft.editingWorkoutId) {
+      const now = Date.now();
+      await ctx.db.insert('workoutDrafts', {
+        userId: user._id,
+        date: new Date(now).toISOString().slice(0, 10),
+        status: 'active',
+        exercises: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
 export const confirmDraft = mutation({
   args: { draftId: v.id('workoutDrafts'), name: v.optional(v.string()) },
   handler: async (ctx, args) => {
