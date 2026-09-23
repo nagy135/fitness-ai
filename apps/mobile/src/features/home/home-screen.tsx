@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowUpRight,
+  BrainCircuit,
   History,
   MessageSquareText,
   Settings,
@@ -20,6 +21,7 @@ import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { useWorkoutSession } from './use-workout-session';
 import { DisplayText } from '@/components/display-text';
+import { QuickModelSettings } from '@/features/settings/quick-model-settings';
 
 const suggestions = [
   'How has my bench press improved?',
@@ -32,6 +34,7 @@ export default function HomeScreen() {
   const mode: FitnessMode = params.mode === 'analysis' ? 'analysis' : 'workout';
   const [conversationOpen, setConversationOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [prompts, setPrompts] = useState({ workout: '', analysis: '' });
   const { colors } = useAppTheme();
   const session = useWorkoutSession(mode, conversationOpen, historyOpen);
@@ -73,6 +76,12 @@ export default function HomeScreen() {
             onPress={() => setConversationOpen(true)}
           >
             <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
+          </IconButton>
+          <IconButton
+            accessibilityLabel="Open model settings"
+            onPress={() => setModelSettingsOpen(true)}
+          >
+            <BrainCircuit color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
             accessibilityLabel="Open settings"
@@ -189,7 +198,7 @@ export default function HomeScreen() {
       <ErrorNotice message={session.error} />
       <PromptBar
         key={mode}
-        voiceEnabled={!conversationOpen && !historyOpen}
+        voiceEnabled={!conversationOpen && !historyOpen && !modelSettingsOpen}
         value={prompts[mode]}
         onChangeText={setPrompt}
         onSubmit={session.submitPrompt}
@@ -204,6 +213,7 @@ export default function HomeScreen() {
         onClose={() => setConversationOpen(false)}
         visible={conversationOpen}
       />
+      <QuickModelSettings visible={modelSettingsOpen} onClose={() => setModelSettingsOpen(false)} />
       <WorkoutHistoryDrawer
         onEdit={() => {
           setHistoryOpen(false);

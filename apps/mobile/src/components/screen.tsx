@@ -29,7 +29,7 @@ export function Screen({
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View className="mx-auto w-full max-w-3xl flex-1">
-        <View className="min-h-[72px] flex-row items-center justify-between px-5 py-3">
+        <View className="min-h-[72px] flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1 px-5 py-3">
           {headerLeft ?? (
             <View accessibilityLabel="Fitness AI" accessible className="flex-row items-center">
               <DisplayText className="text-[32px] leading-10">fit</DisplayText>
@@ -40,7 +40,7 @@ export function Screen({
               <DisplayText className="text-[32px] leading-10">ai</DisplayText>
             </View>
           )}
-          <View className="flex-row items-center gap-[4px]">
+          <View className="ml-auto flex-row items-center gap-[4px]">
             {headerActions}
             <ThemeToggle />
           </View>
