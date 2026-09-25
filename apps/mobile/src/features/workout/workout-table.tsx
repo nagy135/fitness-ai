@@ -39,8 +39,38 @@ export function WorkoutTable({
   onExample: (text: string) => void;
 }) {
   const { colors } = useAppTheme();
-  const [expanded, setExpanded] = useState<string>();
-  const [expandedExercise, setExpandedExercise] = useState<string>();
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(() => new Set());
+  const [previousExercises, setPreviousExercises] = useState(exercises);
+
+  // Compare contents, not query object identities: unrelated updates must not
+  // undo a user's collapse. Open every affected row in a batched tool update.
+  if (previousExercises !== exercises) {
+    const previousById = new Map(previousExercises.map((exercise) => [exercise.rowId, exercise]));
+    const nextExercises = new Set<string>();
+    const nextSets = new Set<string>();
+    for (const exercise of exercises) {
+      const previous = previousById.get(exercise.rowId);
+      if (
+        expandedExercises.has(exercise.rowId) ||
+        JSON.stringify(previous) !== JSON.stringify(exercise)
+      ) {
+        nextExercises.add(exercise.rowId);
+      }
+      const previousSets = new Map(previous?.sets.map((set) => [set.setId, set]));
+      for (const set of exercise.sets) {
+        if (
+          expanded.has(set.setId) ||
+          JSON.stringify(previousSets.get(set.setId)) !== JSON.stringify(set)
+        ) {
+          nextSets.add(set.setId);
+        }
+      }
+    }
+    setPreviousExercises(exercises);
+    setExpandedExercises(nextExercises);
+    setExpanded(nextSets);
+  }
   const scrollRef = useRef<ScrollView>(null);
   const pendingExerciseScroll = useRef<string | undefined>(undefined);
   const setCount = exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
@@ -58,8 +88,8 @@ export function WorkoutTable({
             accessibilityHint="Collapses the sets and returns to the exercise overview"
             onPress={() => {
               pendingExerciseScroll.current = undefined;
-              setExpandedExercise(undefined);
-              setExpanded(undefined);
+              setExpandedExercises(new Set());
+              setExpanded(new Set());
               scrollRef.current?.scrollTo({ y: 0, animated: false });
             }}
             className="min-h-11 flex-row items-center gap-2 rounded-lg px-3 active:bg-soft dark:active:bg-soft-dark"
@@ -101,13 +131,13 @@ export function WorkoutTable({
           </View>
         ) : (
           exercises.map((exercise) => {
-            const exerciseOpen = expandedExercise === exercise.rowId;
+            const exerciseOpen = expandedExercises.has(exercise.rowId);
             const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;
             return (
               <View
                 key={exercise.rowId}
                 onLayout={({ nativeEvent }) => {
-                  // Use the new position after the previously open exercise collapses.
+                  // Use the new position after the exercise expands.
                   if (exerciseOpen && pendingExerciseScroll.current === exercise.rowId) {
                     pendingExerciseScroll.current = undefined;
                     scrollRef.current?.scrollTo({
@@ -126,8 +156,12 @@ export function WorkoutTable({
                     accessibilityState={{ expanded: exerciseOpen }}
                     onPress={() => {
                       pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
-                      setExpandedExercise(exerciseOpen ? undefined : exercise.rowId);
-                      setExpanded(undefined);
+                      setExpandedExercises((previous) => {
+                        const next = new Set(previous);
+                        if (exerciseOpen) next.delete(exercise.rowId);
+                        else next.add(exercise.rowId);
+                        return next;
+                      });
                     }}
                     className="min-h-[68px] flex-1 flex-row items-center gap-3 px-4 py-4 active:bg-soft dark:active:bg-soft-dark"
                   >
@@ -161,7 +195,7 @@ export function WorkoutTable({
                 {exerciseOpen ? (
                   <View className="border-t border-line dark:border-line-dark">
                     {exercise.sets.map((set, index) => {
-                      const open = expanded === set.setId;
+                      const open = expanded.has(set.setId);
                       return (
                         <View
                           key={set.setId}
@@ -171,7 +205,14 @@ export function WorkoutTable({
                             accessibilityRole="button"
                             accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
                             accessibilityState={{ expanded: open }}
-                            onPress={() => setExpanded(open ? undefined : set.setId)}
+                            onPress={() =>
+                              setExpanded((previous) => {
+                                const next = new Set(previous);
+                                if (open) next.delete(set.setId);
+                                else next.add(set.setId);
+                                return next;
+                              })
+                            }
                             className="min-h-[68px] flex-row items-center gap-3 px-4 py-3 active:bg-soft dark:active:bg-soft-dark"
                           >
                             <View className="h-8 w-8 items-center justify-center rounded-full bg-soft dark:bg-soft-dark">
