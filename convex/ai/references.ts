@@ -118,6 +118,9 @@ export const refs = {
     DateRange & { exerciseId: Id<'exercises'> },
     unknown
   >('analysis:getExerciseHistory'),
+  exerciseRecords: makeFunctionReference<'query', { exerciseId: Id<'exercises'> }, unknown>(
+    'analysis:getExerciseRecords',
+  ),
   exerciseStats: makeFunctionReference<
     'query',
     DateRange & { exerciseId: Id<'exercises'> },

@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import {
   calculateVolume,
+  summarizeExerciseRecords,
   estimate1RM,
   groupWorkoutsByMonth,
   groupWorkoutsByWeek,
@@ -9,6 +10,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
+import { currentForUser } from './workoutDrafts';
 
 const dateRangeArgs = { from: v.optional(v.string()), to: v.optional(v.string()) };
 
@@ -255,5 +257,33 @@ export const getTrainingDays = query({
       performedAt: workout.performedAt,
       exercises: workout.exercises.map((exercise) => exercise.nameSnapshot),
     }));
+  },
+});
+
+// Shared by the workout UI and workout AI; never includes the unsaved draft.
+export const getExerciseRecords = query({
+  args: { exerciseId: v.id('exercises') },
+  handler: async (ctx, { exerciseId }) => {
+    const user = await requireUserProfile(ctx);
+    const exercise = await requireOwnedExercise(ctx, exerciseId, user._id);
+    const draft = await currentForUser(ctx, user._id);
+    const workouts = await workoutsInRange(ctx, user._id);
+    const sessions = workouts.map((workout) => ({
+      workoutId: workout._id,
+      performedAt: workout.performedAt,
+      sets: workout.exercises
+        .filter((row) => row.exerciseId === exerciseId)
+        .flatMap((row) => row.sets),
+    }));
+    const records = summarizeExerciseRecords(sessions, exercise.trackingType);
+    return {
+      ...records,
+      previous: draft?.editingWorkoutId
+        ? summarizeExerciseRecords(
+            sessions.filter((session) => session.workoutId !== draft.editingWorkoutId),
+            exercise.trackingType,
+          ).previous
+        : records.previous,
+    };
   },
 });

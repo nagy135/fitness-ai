@@ -7,9 +7,12 @@ import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
 import { DisplayText } from '@/components/display-text';
 import { SetMeasurement } from './set-measurement';
+import type { Id } from '@fitness/convex/data-model';
+import { ExerciseRecords } from './exercise-records';
 
 type DraftSet = WorkoutSet & { setId: string };
 interface DraftExercise {
+  exerciseId?: Id<'exercises'>;
   rowId: string;
   name: string;
   notes?: string;
@@ -194,6 +197,14 @@ export function WorkoutTable({
                 </View>
                 {exerciseOpen ? (
                   <View className="border-t border-line dark:border-line-dark">
+                    {exercise.exerciseId ? (
+                      <ExerciseRecords
+                        exerciseId={exercise.exerciseId}
+                        name={exercise.name}
+                        busy={busy}
+                        onExample={onExample}
+                      />
+                    ) : null}
                     {exercise.sets.map((set, index) => {
                       const open = expanded.has(set.setId);
                       return (

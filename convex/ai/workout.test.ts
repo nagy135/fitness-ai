@@ -215,3 +215,39 @@ describe('workout AI request orchestration', () => {
     expect(generateText).toHaveBeenCalledTimes(1);
   });
 });
+
+
+it('copies all retrieved previous sets through the fenced draft addition tool', async () => {
+  const sets = [
+    { weightKg: 80, reps: 8 },
+    { weightKg: 75, reps: 10 },
+  ];
+  const originalQuery = ctx.runQuery;
+  ctx.runQuery = ((ref: Parameters<typeof getFunctionName>[0], args: unknown) =>
+    getFunctionName(ref) === 'analysis:getExerciseRecords'
+      ? Promise.resolve({ previous: { workoutId: 'saved', performedAt: 20, sets }, maximums: [] })
+      : originalQuery(ref as never, args as never)) as ActionCtx['runQuery'];
+  vi.mocked(generateText).mockImplementation(async (options) => {
+    const tools = generatedTools(options);
+    const records = (await tools.getExerciseRecords.execute({ exerciseId: 'exercise-1' })) as {
+      previous: { sets: typeof sets };
+    };
+    await tools.addExercisesToDraft.execute({
+      exercises: [{ exerciseId: 'exercise-1', sets: records.previous.sets }],
+    });
+    return { text: 'Appended both previous sets to your draft.', steps: [] } as never;
+  });
+  await run(ctx, { requestId });
+  const additions = mutate.mock.calls.filter(
+    ([ref]) => getFunctionName(ref) === 'workoutDrafts:addExercises',
+  );
+  expect(additions).toHaveLength(1);
+  expect(additions[0][1]).toEqual({
+    exercises: [{ exerciseId: 'exercise-1', sets }],
+    source: 'ai',
+    requestId,
+  });
+  expect(mutate.mock.calls.some(([ref]) => getFunctionName(ref).startsWith('workouts:'))).toBe(
+    false,
+  );
+});

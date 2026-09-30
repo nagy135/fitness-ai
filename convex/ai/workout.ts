@@ -62,6 +62,13 @@ export const respond = action({
             execute: ({ workoutId }) =>
               ctx.runQuery(refs.workoutGet, { workoutId: workoutId as Id<'workouts'> }),
           }),
+          getExerciseRecords: tool({
+            description:
+              'Read the previous saved session with ALL sets and reps plus all-time maximum measurements for one exercise. Use for "log previous record", "same as last time", or maximum questions. Previous session excludes the workout currently being edited; maximums include all saved workouts. This tool is read-only; copy requested sets with addExercisesToDraft.',
+            inputSchema: z.object({ exerciseId: z.string() }).strict(),
+            execute: ({ exerciseId }) =>
+              ctx.runQuery(refs.exerciseRecords, { exerciseId: exerciseId as Id<'exercises'> }),
+          }),
           getExerciseHistory: tool({
             description:
               'Read saved sessions and sets for the exercise referenced in the latest request. Retrieve only when historical context is needed; narrow the date range when possible.',
@@ -101,7 +108,7 @@ export const respond = action({
           }),
           addExercisesToDraft: tool({
             description:
-              'Append ONLY newly performed sets from the latest user request, in one ordered batch. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. Do not resend sets already in CURRENT DRAFT or saved workout history. For corrections use updateSet/removeSet. Identical sets are valid when the user explicitly performed another set. Call once after resolving every exercise ID.',
+              'Append ONLY newly performed sets from the latest user request, in one ordered batch. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. Do not resend sets already in CURRENT DRAFT. Copy saved historical sets only when the latest request explicitly asks to repeat them. For corrections use updateSet/removeSet. Identical sets are valid when the user explicitly performed another set. Call once after resolving every exercise ID.',
             inputSchema: AddExercisesToDraftInputSchema,
             execute: async ({ exercises }) => {
               const input = JSON.stringify(exercises);
