@@ -163,6 +163,18 @@ export default function HomeScreen() {
             </View>
           ) : session.response ? (
             <View>
+              {session.response.question ? (
+                <View className="mb-5 items-end">
+                  <View className="max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark">
+                    <Text
+                      selectable
+                      className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
+                    >
+                      {session.response.question}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
               <AnalysisMarkdown text={session.response.text} />
               {session.response.chart ? <ProgressChart chart={session.response.chart} /> : null}
             </View>

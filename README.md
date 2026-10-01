@@ -316,7 +316,7 @@ retrieved fresh through read-only tools; earlier answers are not authoritative s
 Analysis sessions save automatically to your account, including prompts, answers,
 and charts. In Analysis mode, use the history icon to reopen or rename a session,
 or the **+** button to start another without deleting earlier results. The main
-screen shows the latest assistant reply; open Conversation for earlier replies.
+screen shows the latest question and its answer; open Conversation for earlier interactions.
 The latest session is restored when the app opens. **Earlier analysis messages** keeps
 conversations from before sessions were introduced accessible. Deploy the updated
 Convex schema and functions before using this feature in a new mobile build.

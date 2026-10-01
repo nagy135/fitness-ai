@@ -6,7 +6,11 @@ import { useWorkoutSession } from './use-workout-session';
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
   mutation: vi.fn(async () => 'draft-1'),
-  analysis: null as { _id: string; title: string; response: { text: string } | null } | null,
+  analysis: null as {
+    _id: string;
+    title: string;
+    response: { text: string; question?: string } | null;
+  } | null,
 }));
 vi.mock('@fitness/convex/api', () => ({
   api: {
@@ -69,6 +73,7 @@ it('resets the analysis result and errors without changing saved workouts or dra
     await session.submitPrompt('Graph volume');
   });
   expect(session.response?.text).toBe('Your graph');
+  expect(session.response?.question).toBe('Graph volume');
   mocks.action.mockRejectedValue(new Error('offline'));
   await act(async () => {
     await session.submitPrompt('Another graph');
@@ -77,6 +82,7 @@ it('resets the analysis result and errors without changing saved workouts or dra
   mocks.mutation.mockClear();
   await act(() => session.resetAnalysis());
   expect(session.response).toBeUndefined();
+  expect(session.response?.question).toBeUndefined();
   expect(session.error).toBeUndefined();
   expect(mocks.mutation).not.toHaveBeenCalled();
 });
@@ -108,12 +114,13 @@ it('restores saved results after remount and starts a new session only after ano
   mocks.analysis = {
     _id: 'saved-session',
     title: 'Squat progress',
-    response: { text: 'Saved result' },
+    response: { text: 'Saved result', question: 'How is my squat progressing?' },
   };
   await act(() => {
     renderer = create(createElement(Harness));
   });
   expect(session.response?.text).toBe('Saved result');
+  expect(session.response?.question).toBe('How is my squat progressing?');
   expect(session.analysisTitle).toBe('Squat progress');
   mocks.action.mockResolvedValue({ text: 'Updated result' });
   await act(async () => {

@@ -9,6 +9,7 @@ import { latestWorkoutExchange } from '../workout/latest-workout-exchange';
 
 type Response = {
   text: string;
+  question?: string;
   chart?: AnalysisChart;
   draftId?: string;
   sessionId?: Id<'analysisSessions'>;
@@ -106,7 +107,12 @@ export function useWorkoutSession(
         : await analysisAI({ prompt, sessionId });
       setResponses((previous) => ({
         ...previous,
-        [mode]: { ...result, draftId: responseDraftId, sessionId },
+        [mode]: {
+          ...result,
+          draftId: responseDraftId,
+          sessionId,
+          ...(mode === 'analysis' ? { question: prompt } : {}),
+        },
       }));
       // Once the result arrived, an acknowledgement failure must not turn this
       // into a failed submission: its acknowledgement may already have committed.
