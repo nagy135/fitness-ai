@@ -1,11 +1,12 @@
 import { useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { MessageSquareText } from 'lucide-react-native';
-import type { FitnessMode } from '@fitness/ui';
+import { Button, type FitnessMode } from '@fitness/ui';
 import type { AnalysisChart } from '@fitness/ai';
 import { useAppTheme } from './theme-provider';
 import { ProgressChart } from './progress-chart';
 import { Drawer } from './drawer';
+import { AnalysisMarkdown } from './analysis-markdown';
 
 type ConversationMessage = {
   _id: string;
@@ -20,14 +21,19 @@ export function ConversationDrawer({
   mode,
   onClose,
   visible,
+  onLoadOlder,
+  loadingOlder,
 }: {
   messages: ConversationMessage[] | undefined;
   mode: FitnessMode;
   onClose: () => void;
   visible: boolean;
+  onLoadOlder?: () => void;
+  loadingOlder?: boolean;
 }) {
   const { colors } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
+  const lastScrolledMessage = useRef<string | undefined>(undefined);
   const chronologicalMessages = [...(messages ?? [])].reverse();
 
   return (
@@ -41,15 +47,23 @@ export function ConversationDrawer({
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={colors.accent} accessibilityLabel="Loading conversation" />
         </View>
-      ) : chronologicalMessages.length ? (
+      ) : chronologicalMessages.length || onLoadOlder || loadingOlder ? (
         <ScrollView
           contentContainerClassName="gap-4 pb-6"
           onContentSizeChange={() => {
-            if (visible) scrollRef.current?.scrollToEnd({ animated: false });
+            if (visible && lastScrolledMessage.current !== messages?.[0]?._id) {
+              scrollRef.current?.scrollToEnd({ animated: false });
+              lastScrolledMessage.current = messages?.[0]?._id;
+            }
           }}
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
         >
+          {onLoadOlder || loadingOlder ? (
+            <Button variant="ghost" loading={loadingOlder} onPress={onLoadOlder}>
+              Load earlier messages
+            </Button>
+          ) : null}
           {chronologicalMessages.map((message) => {
             const fromUser = message.role === 'user';
             return (
@@ -58,18 +72,22 @@ export function ConversationDrawer({
                   className={
                     fromUser
                       ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
-                      : 'max-w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
+                      : `${mode === 'analysis' ? 'w-[94%]' : 'max-w-[94%]'} rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark`
                   }
                 >
-                  <Text
-                    className={
-                      fromUser
-                        ? 'text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark'
-                        : 'text-[15px] leading-6 text-ink dark:text-ink-dark'
-                    }
-                  >
-                    {message.text}
-                  </Text>
+                  {!fromUser && mode === 'analysis' ? (
+                    <AnalysisMarkdown text={message.text} compact />
+                  ) : (
+                    <Text
+                      className={
+                        fromUser
+                          ? 'text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark'
+                          : 'text-[15px] leading-6 text-ink dark:text-ink-dark'
+                      }
+                    >
+                      {message.text}
+                    </Text>
+                  )}
                   {!fromUser && message.chart ? (
                     <ProgressChart chart={message.chart} compact />
                   ) : null}
