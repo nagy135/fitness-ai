@@ -134,12 +134,23 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_user', ['userId']),
 
+  analysisSessions: defineTable({
+    userId: v.id('userProfiles'),
+    title: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user_updated', ['userId', 'updatedAt']),
+
   aiMessages: defineTable({
     userId: v.id('userProfiles'),
     mode: v.union(v.literal('workout'), v.literal('analysis')),
     role: v.union(v.literal('user'), v.literal('assistant')),
     text: v.string(),
     chart: v.optional(analysisChartValidator),
+    sessionId: v.optional(v.id('analysisSessions')),
     createdAt: v.number(),
-  }).index('by_user_mode', ['userId', 'mode', 'createdAt']),
+  })
+    .index('by_user_mode', ['userId', 'mode', 'createdAt'])
+    .index('by_session', ['sessionId', 'createdAt'])
+    .index('by_session_role', ['sessionId', 'role', 'createdAt']),
 });

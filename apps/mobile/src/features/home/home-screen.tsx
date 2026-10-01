@@ -1,44 +1,50 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  ArrowUpRight,
-  BrainCircuit,
-  History,
-  MessageSquareText,
-  Settings,
-  TrendingUp,
-} from 'lucide-react-native';
+import { BrainCircuit, History, MessageSquareText, Settings, Plus } from 'lucide-react-native';
 import { Button, IconButton, ModeSwitch, type FitnessMode } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PromptBar } from '@/components/prompt-bar';
 import { ConversationDrawer } from '@/components/conversation-drawer';
+import { AnalysisConversationDrawer } from '@/components/analysis-conversation-drawer';
+import { AnalysisMarkdown } from '@/components/analysis-markdown';
+import { AnalysisHistoryDrawer } from '@/components/analysis-history-drawer';
 import { useAppTheme } from '@/components/theme-provider';
 import { WorkoutTable } from '@/features/workout/workout-table';
+import { WorkoutReviewBar } from '@/features/workout/workout-review-bar';
 import { ProgressChart } from '@/components/progress-chart';
 import { WorkoutHistoryDrawer } from '@/components/workout-history-drawer';
 import { Screen } from '@/components/screen';
 import { ErrorNotice } from '@/components/error-notice';
 import { useWorkoutSession } from './use-workout-session';
-import { DisplayText } from '@/components/display-text';
+import { usePromptQueue } from './use-prompt-queue';
 import { QuickModelSettings } from '@/features/settings/quick-model-settings';
-
-const suggestions = [
-  'How has my bench press improved?',
-  'Graph my weekly training volume',
-  'What did I train last week?',
-];
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode: FitnessMode = params.mode === 'analysis' ? 'analysis' : 'workout';
   const [conversationOpen, setConversationOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [analysisHistoryOpen, setAnalysisHistoryOpen] = useState(false);
+  const [legacyConversation, setLegacyConversation] = useState(false);
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+  const [analysisReset, setAnalysisReset] = useState(0);
   const [prompts, setPrompts] = useState({ workout: '', analysis: '' });
   const { colors } = useAppTheme();
   const session = useWorkoutSession(mode, conversationOpen, historyOpen);
+  const queue = usePromptQueue(
+    session.submitPrompt,
+    session.busy || (mode === 'analysis' && session.analysisLoading),
+  );
+  const busy = session.busy || queue.hasWork;
   const setPrompt = (value: string) => setPrompts((previous) => ({ ...previous, [mode]: value }));
+  function newAnalysis() {
+    if (busy) return;
+    session.resetAnalysis();
+    setPrompts((previous) => ({ ...previous, analysis: '' }));
+    setAnalysisReset((previous) => previous + 1);
+    setAnalysisHistoryOpen(false);
+  }
   if (session.initializationError)
     return (
       <Screen>
@@ -53,7 +59,7 @@ export default function HomeScreen() {
   const exercises = session.draft?.exercises ?? [];
   const setCount = exercises.reduce((total, row) => total + row.sets.length, 0);
   function changeMode(next: FitnessMode) {
-    if (next === mode || session.busy) return;
+    if (next === mode || busy) return;
     if (next === 'analysis' && setCount > 0) {
       router.push('/workout/confirm');
       return;
@@ -65,15 +71,22 @@ export default function HomeScreen() {
       headerActions={
         <>
           <IconButton
-            accessibilityLabel="Open workout history"
-            disabled={session.busy}
-            onPress={() => setHistoryOpen(true)}
+            accessibilityLabel={
+              mode === 'analysis' ? 'Open analysis history' : 'Open workout history'
+            }
+            disabled={busy}
+            onPress={() =>
+              mode === 'analysis' ? setAnalysisHistoryOpen(true) : setHistoryOpen(true)
+            }
           >
             <History color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
             accessibilityLabel="Open conversation"
-            onPress={() => setConversationOpen(true)}
+            onPress={() => {
+              setLegacyConversation(false);
+              setConversationOpen(true);
+            }}
           >
             <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
@@ -85,42 +98,43 @@ export default function HomeScreen() {
           </IconButton>
           <IconButton
             accessibilityLabel="Open settings"
-            disabled={session.busy}
+            disabled={busy}
             onPress={() => router.push('/settings/account')}
           >
             <Settings color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
+          {mode === 'analysis' ? (
+            <IconButton
+              accessibilityLabel="Start new analysis"
+              disabled={busy || session.analysisLoading}
+              onPress={newAnalysis}
+            >
+              <Plus color={colors.text} size={20} strokeWidth={2} />
+            </IconButton>
+          ) : null}
         </>
       }
     >
       <View className="px-5 pb-2">
-        <ModeSwitch mode={mode} onChange={changeMode} disabled={session.busy} />
+        <ModeSwitch mode={mode} onChange={changeMode} disabled={busy} />
         {session.draft?.editingWorkoutId ? (
           <View className="mt-3 gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark">
             <Text className="font-bold text-ink dark:text-ink-dark">
-              Editing saved workout · {session.draft.date}
+              Editing saved workout ·{' '}
+              {session.draft.performedAt !== undefined
+                ? new Date(session.draft.performedAt).toLocaleDateString()
+                : session.draft.date}
             </Text>
             <Text className="text-sm text-muted dark:text-muted-dark">
               Review and save your changes when you’re done.
             </Text>
             <Button
               variant="ghost"
-              disabled={session.busy}
+              disabled={busy}
               onPress={() => void session.cancelHistoryEdit()}
             >
               Cancel changes
             </Button>
-          </View>
-        ) : null}
-        {mode === 'analysis' ? (
-          <View className="mt-5 flex-row items-end justify-between">
-            <View>
-              <Text className="text-sm text-muted dark:text-muted-dark">
-                Your training, in perspective
-              </Text>
-              <DisplayText className="text-[52px] leading-[60px]">The long game.</DisplayText>
-            </View>
-            <TrendingUp size={36} strokeWidth={1.5} color={colors.accent} />
           </View>
         ) : null}
       </View>
@@ -128,7 +142,7 @@ export default function HomeScreen() {
         <WorkoutTable
           key={session.draft?._id}
           exercises={exercises}
-          busy={session.busy}
+          busy={busy}
           onRemoveSet={session.removeSet}
           onRemoveExercise={session.removeExercise}
           onUpdateSet={session.updateSet}
@@ -140,78 +154,87 @@ export default function HomeScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerClassName="grow px-5 pb-6 pt-5"
         >
-          {session.response ? (
+          {session.analysisLoading ? (
+            <View className="flex-1 items-center justify-center">
+              <ActivityIndicator
+                color={colors.accent}
+                accessibilityLabel="Loading saved analysis"
+              />
+            </View>
+          ) : session.response ? (
             <View>
-              <Text className="text-base leading-7 text-ink dark:text-ink-dark" selectable>
-                {session.response.text}
-              </Text>
+              <AnalysisMarkdown text={session.response.text} />
               {session.response.chart ? <ProgressChart chart={session.response.chart} /> : null}
             </View>
-          ) : (
-            <View className="flex-1 justify-center py-6">
-              <DisplayText className="text-[36px] leading-10">
-                Every session tells a story.
-              </DisplayText>
-              <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
-                Explore your lifts, spot patterns, and follow your progress.
-              </Text>
-              <View className="mt-7 gap-2">
-                {suggestions.map((text) => (
-                  <Pressable
-                    key={text}
-                    accessibilityRole="button"
-                    disabled={session.busy}
-                    onPress={() => setPrompt(text)}
-                    className="min-h-16 flex-row items-center justify-between gap-4 border-b border-line py-4 active:opacity-70 dark:border-line-dark"
-                  >
-                    <Text className="flex-1 text-base font-medium text-ink dark:text-ink-dark">
-                      {text}
-                    </Text>
-                    <ArrowUpRight color={colors.accent} size={21} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          )}
+          ) : null}
         </ScrollView>
       )}
-      {mode === 'workout' && session.response ? (
-        <View className="mx-5 mb-2 max-h-28 rounded-xl bg-soft px-4 py-3 dark:bg-soft-dark">
-          <ScrollView>
-            <Text selectable className="text-sm leading-5 text-ink dark:text-ink-dark">
-              {session.response.text}
-            </Text>
-          </ScrollView>
-        </View>
-      ) : null}
-      {mode === 'workout' && setCount > 0 ? (
-        <View className="px-5 pb-2">
-          <Button
-            variant="secondary"
-            disabled={session.busy}
-            onPress={() => router.push('/workout/confirm')}
-          >
-            {session.draft?.editingWorkoutId ? 'Review changes' : 'Review workout'}
-          </Button>
-        </View>
+      {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
+        <WorkoutReviewBar
+          key={session.draft?._id}
+          response={session.workoutExchange}
+          busy={busy}
+          hasSets={setCount > 0}
+          editing={!!session.draft?.editingWorkoutId}
+          onReview={() => router.push('/workout/confirm')}
+        />
       ) : null}
       <ErrorNotice message={session.error} />
       <PromptBar
-        key={mode}
-        voiceEnabled={!conversationOpen && !historyOpen && !modelSettingsOpen}
+        key={mode === 'analysis' ? `analysis-${analysisReset}` : mode}
+        voiceEnabled={
+          !conversationOpen && !historyOpen && !analysisHistoryOpen && !modelSettingsOpen
+        }
         value={prompts[mode]}
         onChangeText={setPrompt}
-        onSubmit={session.submitPrompt}
+        onSubmit={queue.enqueue}
+        queued={queue.pending}
+        queueFull={queue.full}
+        failedPrompt={queue.failed}
+        onRemoveQueued={queue.remove}
+        onRetryFailed={queue.retry}
+        onDiscardFailed={queue.discardFailed}
         placeholder={
           mode === 'workout' ? 'Log a set or make a correction…' : 'Ask about your training…'
         }
         processing={session.busy}
+        processingLabel={
+          mode === 'workout' ? 'Updating your draft…' : 'Reading your training history…'
+        }
       />
-      <ConversationDrawer
-        messages={session.messages}
-        mode={mode}
-        onClose={() => setConversationOpen(false)}
-        visible={conversationOpen}
+      {mode === 'analysis' ? (
+        <AnalysisConversationDrawer
+          key={legacyConversation ? 'legacy' : (session.analysisId ?? 'new')}
+          sessionId={legacyConversation ? undefined : session.analysisId}
+          legacy={legacyConversation}
+          onClose={() => setConversationOpen(false)}
+          visible={conversationOpen}
+        />
+      ) : (
+        <ConversationDrawer
+          messages={session.messages}
+          mode={mode}
+          onClose={() => setConversationOpen(false)}
+          visible={conversationOpen}
+        />
+      )}
+      <AnalysisHistoryDrawer
+        visible={analysisHistoryOpen}
+        selectedId={session.analysisId}
+        onClose={() => setAnalysisHistoryOpen(false)}
+        onNew={newAnalysis}
+        onOpen={(id) => {
+          if (busy) return;
+          session.openAnalysis(id);
+          setPrompts((previous) => ({ ...previous, analysis: '' }));
+          setAnalysisReset((previous) => previous + 1);
+          setAnalysisHistoryOpen(false);
+        }}
+        onLegacy={() => {
+          setAnalysisHistoryOpen(false);
+          setLegacyConversation(true);
+          setConversationOpen(true);
+        }}
       />
       <QuickModelSettings visible={modelSettingsOpen} onClose={() => setModelSettingsOpen(false)} />
       <WorkoutHistoryDrawer

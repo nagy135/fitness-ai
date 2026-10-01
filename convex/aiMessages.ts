@@ -1,10 +1,120 @@
 import { currentForUser } from './workoutDrafts';
 import { v } from 'convex/values';
+import { paginationOptsValidator } from 'convex/server';
+import type { Id } from './_generated/dataModel';
+import type { QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
 
 const mode = v.union(v.literal('workout'), v.literal('analysis'));
 const role = v.union(v.literal('user'), v.literal('assistant'));
+const sessionId = v.id('analysisSessions');
+
+async function ownedSession(ctx: QueryCtx, id: Id<'analysisSessions'>, userId: Id<'userProfiles'>) {
+  const session = await ctx.db.get(id);
+  if (!session || session.userId !== userId) throw new Error('Analysis not found');
+  return session;
+}
+
+export const createAnalysisSession = mutation({
+  args: { title: v.string() },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const title = args.title.trim().slice(0, 100);
+    if (!title) throw new Error('Analysis title is required');
+    return ctx.db.insert('analysisSessions', {
+      userId: user._id,
+      title,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const renameAnalysisSession = mutation({
+  args: { sessionId, title: v.string() },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    await ownedSession(ctx, args.sessionId, user._id);
+    const title = args.title.trim();
+    if (!title || title.length > 100) throw new Error('Use a title between 1 and 100 characters');
+    await ctx.db.patch(args.sessionId, { title });
+  },
+});
+
+export const analysisHistory = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    return ctx.db
+      .query('analysisSessions')
+      .withIndex('by_user_updated', (q) => q.eq('userId', user._id))
+      .order('desc')
+      .paginate(args.paginationOpts);
+  },
+});
+
+// Without an explicit selection, restore the most recently used analysis.
+export const analysisSession = query({
+  args: { sessionId: v.optional(sessionId) },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const session = args.sessionId
+      ? await ownedSession(ctx, args.sessionId, user._id)
+      : await ctx.db
+          .query('analysisSessions')
+          .withIndex('by_user_updated', (q) => q.eq('userId', user._id))
+          .order('desc')
+          .first();
+    if (!session) return null;
+    const response = await ctx.db
+      .query('aiMessages')
+      .withIndex('by_session_role', (q) => q.eq('sessionId', session._id).eq('role', 'assistant'))
+      .order('desc')
+      .first();
+    return { ...session, response };
+  },
+});
+
+// Model context includes the entire selected session, independent of UI pagination.
+export const analysisContext = query({
+  args: { sessionId },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    await ownedSession(ctx, args.sessionId, user._id);
+    const messages = await ctx.db
+      .query('aiMessages')
+      .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
+      .order('asc')
+      .collect();
+    return messages.map(({ role, text, chart }) => ({
+      role,
+      content: chart ? `${text}\n\nSAVED CHART: ${JSON.stringify(chart)}` : text,
+    }));
+  },
+});
+
+export const analysisConversation = query({
+  args: { sessionId: v.optional(sessionId), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    if (args.sessionId) {
+      await ownedSession(ctx, args.sessionId, user._id);
+      return ctx.db
+        .query('aiMessages')
+        .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
+        .order('desc')
+        .paginate(args.paginationOpts);
+    }
+    // Pre-session messages remain available without rewriting existing history.
+    return ctx.db
+      .query('aiMessages')
+      .withIndex('by_user_mode', (q) => q.eq('userId', user._id).eq('mode', 'analysis'))
+      .filter((q) => q.eq(q.field('sessionId'), undefined))
+      .order('desc')
+      .paginate(args.paginationOpts);
+  },
+});
 const legacyChart = v.object({
   type: v.literal('line'),
   title: v.string(),
@@ -32,9 +142,20 @@ const chart = v.union(
 );
 
 export const append = mutation({
-  args: { mode, role, text: v.string(), chart: v.optional(chart) },
+  args: {
+    mode,
+    role,
+    text: v.string(),
+    chart: v.optional(chart),
+    sessionId: v.optional(sessionId),
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
+    if (args.sessionId) {
+      if (args.mode !== 'analysis') throw new Error('Only analysis messages belong to an analysis');
+      await ownedSession(ctx, args.sessionId, user._id);
+      await ctx.db.patch(args.sessionId, { updatedAt: Date.now() });
+    }
     return ctx.db.insert('aiMessages', { userId: user._id, ...args, createdAt: Date.now() });
   },
 });

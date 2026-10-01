@@ -101,9 +101,20 @@ export const refs = {
       role: 'user' | 'assistant';
       text: string;
       chart?: AnalysisChart;
+      sessionId?: Id<'analysisSessions'>;
     },
     Id<'aiMessages'>
   >('aiMessages:append'),
+  analysisContext: makeFunctionReference<
+    'query',
+    { sessionId: Id<'analysisSessions'> },
+    { role: 'user' | 'assistant'; content: string }[]
+  >('aiMessages:analysisContext'),
+  analysisSessionCreate: makeFunctionReference<
+    'mutation',
+    { title: string },
+    Id<'analysisSessions'>
+  >('aiMessages:createAnalysisSession'),
   workoutsRecent: makeFunctionReference<'query', { limit?: number }, unknown>('workouts:recent'),
   workoutGet: makeFunctionReference<'query', { workoutId: Id<'workouts'> }, unknown>(
     'workouts:get',

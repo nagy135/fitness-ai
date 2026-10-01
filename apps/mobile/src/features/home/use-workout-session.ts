@@ -3,9 +3,16 @@ import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@fitness/convex/api';
 import type { FitnessMode } from '@fitness/ui';
 import type { AnalysisChart } from '@fitness/ai';
+import type { Id } from '@fitness/convex/data-model';
 import type { SetPatch } from '@/features/workout/workout-table';
+import { latestWorkoutExchange } from '../workout/latest-workout-exchange';
 
-type Response = { text: string; chart?: AnalysisChart; draftId?: string };
+type Response = {
+  text: string;
+  chart?: AnalysisChart;
+  draftId?: string;
+  sessionId?: Id<'analysisSessions'>;
+};
 export function useWorkoutSession(
   mode: FitnessMode,
   conversationOpen: boolean,
@@ -21,6 +28,22 @@ export function useWorkoutSession(
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [responses, setResponses] = useState<Partial<Record<FitnessMode, Response>>>({});
+  // undefined restores the latest saved session; null is an unsent new analysis.
+  const [selectedAnalysis, setSelectedAnalysis] = useState<Id<'analysisSessions'> | null>();
+  const createAnalysis = useMutation(api.aiMessages.createAnalysisSession);
+  const analysis = useQuery(
+    api.aiMessages.analysisSession,
+    ready && isAuthenticated && selectedAnalysis !== null
+      ? { ...(selectedAnalysis ? { sessionId: selectedAnalysis } : {}) }
+      : 'skip',
+  );
+  const analysisId =
+    selectedAnalysis ?? (selectedAnalysis === undefined ? analysis?._id : undefined);
+  // Resolve the initial selection once so updates from another device cannot
+  // switch the conversation underneath the current prompt.
+  if (selectedAnalysis === undefined && analysis !== undefined) {
+    setSelectedAnalysis(analysis?._id ?? null);
+  }
   const ensureProfile = useMutation(api.userProfiles.ensureCurrent);
   const getOrCreate = useMutation(api.workoutDrafts.getOrCreate);
   const cancelEdit = useMutation(api.workouts.cancelEdit);
@@ -34,7 +57,9 @@ export function useWorkoutSession(
   const draft = useQuery(api.workoutDrafts.current, ready && isAuthenticated ? {} : 'skip');
   const messages = useQuery(
     api.aiMessages.recent,
-    ready && isAuthenticated && conversationOpen ? { mode, limit: 50 } : 'skip',
+    ready && isAuthenticated && mode === 'workout'
+      ? { mode, limit: conversationOpen ? 50 : 10 }
+      : 'skip',
   );
   const workouts = useQuery(
     api.workouts.recent,
@@ -60,15 +85,29 @@ export function useWorkoutSession(
   }, [ensureProfile, getOrCreate, isAuthenticated, attempt]);
 
   async function submitPrompt(prompt: string): Promise<boolean> {
-    if (locked.current) return false;
+    if (
+      locked.current ||
+      (mode === 'analysis' && selectedAnalysis !== null && analysis === undefined)
+    )
+      return false;
     locked.current = true;
     setBusy(true);
     setError(undefined);
     try {
       const responseDraftId = mode === 'workout' ? await getOrCreate({}) : undefined;
       const requestId = mode === 'workout' ? await prepareWorkoutRequest({ prompt }) : undefined;
-      const result = requestId ? await workoutAI({ requestId }) : await analysisAI({ prompt });
-      setResponses((previous) => ({ ...previous, [mode]: { ...result, draftId: responseDraftId } }));
+      let sessionId = analysisId;
+      if (mode === 'analysis' && !sessionId) {
+        sessionId = await createAnalysis({ title: prompt });
+        setSelectedAnalysis(sessionId);
+      }
+      const result = requestId
+        ? await workoutAI({ requestId })
+        : await analysisAI({ prompt, sessionId });
+      setResponses((previous) => ({
+        ...previous,
+        [mode]: { ...result, draftId: responseDraftId, sessionId },
+      }));
       // Once the result arrived, an acknowledgement failure must not turn this
       // into a failed submission: its acknowledgement may already have committed.
       if (requestId) await acknowledgeWorkoutRequest({ requestId }).catch(() => undefined);
@@ -110,10 +149,33 @@ export function useWorkoutSession(
     busy,
     draft,
     messages,
+    workoutExchange: latestWorkoutExchange(messages),
     workouts,
+    analysisId,
+    analysisTitle: selectedAnalysis === null ? undefined : analysis?.title,
+    analysisLoading: selectedAnalysis !== null && analysis === undefined,
     response:
-      mode === 'workout' && responses.workout?.draftId !== draft?._id ? undefined : responses[mode],
+      mode === 'analysis'
+        ? selectedAnalysis !== null
+          ? (analysis?.response ??
+            (responses.analysis?.sessionId === analysisId ? responses.analysis : undefined))
+          : undefined
+        : responses.workout?.draftId !== draft?._id
+          ? undefined
+          : responses.workout,
     submitPrompt,
+    resetAnalysis: () => {
+      if (locked.current) return;
+      setSelectedAnalysis(null);
+      setResponses((previous) => ({ ...previous, analysis: undefined }));
+      setErrors((previous) => ({ ...previous, analysis: undefined }));
+    },
+    openAnalysis: (id: Id<'analysisSessions'>) => {
+      if (locked.current) return;
+      setSelectedAnalysis(id);
+      setResponses((previous) => ({ ...previous, analysis: undefined }));
+      setErrors((previous) => ({ ...previous, analysis: undefined }));
+    },
     cancelHistoryEdit: () =>
       edit(async () => {
         if (!draft?.editingWorkoutId) return;
