@@ -1,8 +1,16 @@
 import { v } from 'convex/values';
-import { AI_MODELS, AI_REASONING_OPTIONS } from '@fitness/ai/settings';
+import { AI_MODELS, AI_REASONING_OPTIONS, LEGACY_AI_MODEL_IDS } from '@fitness/ai/settings';
 
 export const aiSettingsValidator = v.object({
   model: v.union(...AI_MODELS.map(({ id }) => v.literal(id))),
+  reasoningEffort: v.union(...AI_REASONING_OPTIONS.map(({ id }) => v.literal(id))),
+});
+
+export const storedAISettingsValidator = v.object({
+  model: v.union(
+    ...AI_MODELS.map(({ id }) => v.literal(id)),
+    ...LEGACY_AI_MODEL_IDS.map((id) => v.literal(id)),
+  ),
   reasoningEffort: v.union(...AI_REASONING_OPTIONS.map(({ id }) => v.literal(id))),
 });
 

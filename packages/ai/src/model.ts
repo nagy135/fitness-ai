@@ -1,12 +1,17 @@
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import type { LanguageModel } from 'ai';
-import { DEFAULT_AI_SETTINGS, type AIReasoningEffort } from './settings';
+import { createOpenAI } from '@ai-sdk/openai';
+import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from 'ai';
+import {
+  DEFAULT_AI_SETTINGS,
+  resolveAISettings,
+  type AIModelId,
+  type AIReasoningEffort,
+} from './settings';
 
 export type AIProviderName = 'openrouter';
 
 export interface AIModelConfig {
   provider: AIProviderName;
-  model: string;
+  model: AIModelId;
   apiKey: string;
   reasoningEffort?: AIReasoningEffort;
 }
@@ -14,8 +19,26 @@ export interface AIModelConfig {
 export function createFitnessModel(config: AIModelConfig): LanguageModel {
   switch (config.provider) {
     case 'openrouter':
-      return createOpenRouter({ apiKey: config.apiKey, appName: 'Fitness AI' })(config.model, {
-        reasoning: { effort: config.reasoningEffort ?? DEFAULT_AI_SETTINGS.reasoningEffort },
+      return wrapLanguageModel({
+        model: createOpenAI({
+          baseURL: 'https://openrouter.ai/api/v1',
+          apiKey: config.apiKey,
+          headers: { 'X-OpenRouter-Title': 'Fitness AI' },
+        }).responses(config.model),
+        middleware: defaultSettingsMiddleware({
+          settings: {
+            providerOptions: {
+              openai: {
+                // OpenRouter's provider prefix prevents the OpenAI adapter from recognizing GPT-6.
+                forceReasoning: true,
+                reasoningEffort: resolveAISettings({
+                  model: config.model,
+                  reasoningEffort: config.reasoningEffort ?? DEFAULT_AI_SETTINGS.reasoningEffort,
+                }).reasoningEffort,
+              },
+            },
+          },
+        }),
       });
     default: {
       const neverProvider: never = config.provider;

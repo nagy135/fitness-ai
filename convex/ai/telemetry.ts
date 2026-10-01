@@ -1,6 +1,6 @@
 'use node';
 
-import { resolveAISettings, type AISettings } from '@fitness/ai/settings';
+import { resolveAISettings, type StoredAISettings } from '@fitness/ai/settings';
 
 import type {
   GenerateTextStepStartEvent,
@@ -62,7 +62,7 @@ class AITrace {
     }
   }
 
-  settings(settings?: AISettings) {
+  settings(settings?: StoredAISettings) {
     this.log('model_settings', resolveAISettings(settings));
   }
 

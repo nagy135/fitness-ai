@@ -29,7 +29,7 @@ export function AISettings() {
     selected.model !== current.model || selected.reasoningEffort !== current.reasoningEffort;
 
   function select(patch: Partial<Settings>) {
-    setDraft({ ...selected, ...patch });
+    setDraft(resolveAISettings({ ...selected, ...patch }));
     setError(undefined);
     setSaved(false);
   }
@@ -101,7 +101,9 @@ export function AISettings() {
             accessibilityLabel="Reasoning effort"
             className="flex-row flex-wrap gap-2"
           >
-            {AI_REASONING_OPTIONS.map((effort) => (
+            {AI_REASONING_OPTIONS.filter(
+              (effort) => selected.model !== 'openai/gpt-6-astra' || effort.id !== 'none',
+            ).map((effort) => (
               <Pressable
                 key={effort.id}
                 accessibilityRole="radio"
@@ -130,7 +132,7 @@ export function AISettings() {
             ))}
           </View>
           <Text className="mb-4 mt-3 text-xs text-muted dark:text-muted-dark">
-            Default: GPT-5.6 Terra · Low
+            Default: GPT-6 Sol · Low
           </Text>
           <ErrorNotice message={error} />
           <Button loading={busy} disabled={!changed} onPress={() => void save()}>

@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { resolveAISettings } from '@fitness/ai/settings';
 import { mutation, query } from './_generated/server';
 import { requireAuthenticatedUser, requireUserProfile } from './lib/auth';
 import { aiSettingsValidator } from './model';
@@ -7,7 +8,7 @@ export const updateAISettings = mutation({
   args: { settings: aiSettingsValidator },
   handler: async (ctx, { settings }) => {
     const user = await requireUserProfile(ctx);
-    await ctx.db.patch(user._id, { aiSettings: settings });
+    await ctx.db.patch(user._id, { aiSettings: resolveAISettings(settings) });
   },
 });
 

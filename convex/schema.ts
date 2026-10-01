@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
-  aiSettingsValidator,
+  storedAISettingsValidator,
   draftEventTypeValidator,
   draftExerciseValidator,
   draftSnapshotValidator,
@@ -41,7 +41,7 @@ export default defineSchema({
     authUserId: v.string(),
     displayName: v.optional(v.string()),
     units: v.union(v.literal('metric'), v.literal('imperial')),
-    aiSettings: v.optional(aiSettingsValidator),
+    aiSettings: v.optional(storedAISettingsValidator),
     createdAt: v.number(),
   }).index('by_auth_user', ['authUserId']),
 

@@ -1,8 +1,8 @@
 'use node';
 
-import { createFitnessModel, resolveAISettings, type AISettings } from '@fitness/ai';
+import { createFitnessModel, resolveAISettings, type StoredAISettings } from '@fitness/ai';
 
-export function createUserModel(settings?: AISettings) {
+export function createUserModel(settings?: StoredAISettings) {
   const provider = process.env.AI_PROVIDER ?? 'openrouter';
   if (provider !== 'openrouter')
     throw new Error(`AI_PROVIDER ${provider} is not configured in this build`);

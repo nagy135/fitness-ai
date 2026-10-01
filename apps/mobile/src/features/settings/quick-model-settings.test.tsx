@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AISettings } from '@fitness/ai/settings';
+import type { StoredAISettings } from '@fitness/ai/settings';
 import { QuickModelSettings } from './quick-model-settings';
 
 vi.mock('react-native', () => ({ Pressable: 'Pressable', Text: 'Text', View: 'View' }));
@@ -17,7 +17,7 @@ vi.mock('@/components/theme-provider', () => ({ useAppTheme: () => ({ colors: {}
 vi.mock('@fitness/convex/api', () => ({
   api: { userProfiles: { current: 'current', updateAISettings: 'update' } },
 }));
-let profile: { aiSettings?: AISettings } | undefined;
+let profile: { aiSettings?: StoredAISettings } | undefined;
 const update = vi.fn();
 vi.mock('convex/react', () => ({
   useConvexAuth: () => ({ isAuthenticated: true }),
@@ -51,23 +51,23 @@ afterEach(async () => {
 
 describe('quick model settings', () => {
   it('loads saved preferences and saves each choice without a save button', async () => {
-    profile = { aiSettings: { model: 'openai/gpt-5.6-luna', reasoningEffort: 'medium' } };
+    profile = { aiSettings: { model: 'openai/gpt-6-luna', reasoningEffort: 'medium' } };
     await mount();
-    expect(find('Model').props.accessibilityValue.text).toBe('GPT-5.6 Luna');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6 Luna');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('Medium');
     expect(update).not.toHaveBeenCalled();
-    await choose('Model', 'GPT-5.6 Sol');
+    await choose('Model', 'GPT-6 Astra');
     expect(update).toHaveBeenLastCalledWith({
-      settings: { model: 'openai/gpt-5.6-sol', reasoningEffort: 'medium' },
+      settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'medium' },
     });
     await choose('Reasoning', 'High');
     expect(update).toHaveBeenLastCalledWith({
-      settings: { model: 'openai/gpt-5.6-sol', reasoningEffort: 'high' },
+      settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'high' },
     });
     expect(find('Reasoning').props.accessibilityState.expanded).toBe(false);
     await act(() => renderer.unmount());
     await mount();
-    expect(find('Model').props.accessibilityValue.text).toBe('GPT-5.6 Sol');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6 Astra');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('High');
   });
 
@@ -83,18 +83,18 @@ describe('quick model settings', () => {
         }),
     );
     await mount();
-    await choose('Model', 'GPT-5.6 Sol');
+    await choose('Model', 'GPT-6 Astra');
     await choose('Reasoning', 'High');
-    expect(find('Model').props.accessibilityValue.text).toBe('GPT-5.6 Sol');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6 Astra');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('High');
     expect(update).toHaveBeenCalledTimes(1);
     await act(() => renderer.root.findByProps({ title: 'AI model' }).props.onRequestClose());
     expect(onClose).toHaveBeenCalledOnce();
     await act(() => finish());
     expect(update).toHaveBeenNthCalledWith(2, {
-      settings: { model: 'openai/gpt-5.6-sol', reasoningEffort: 'high' },
+      settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'high' },
     });
-    expect(profile?.aiSettings).toEqual({ model: 'openai/gpt-5.6-sol', reasoningEffort: 'high' });
+    expect(profile?.aiSettings).toEqual({ model: 'openai/gpt-6-astra', reasoningEffort: 'high' });
   });
 
   it('keeps failed selections available for retry', async () => {
@@ -117,10 +117,10 @@ describe('quick model settings', () => {
         }),
     );
     await mount();
-    await choose('Model', 'GPT-5.6 Luna');
+    await choose('Model', 'GPT-6 Luna');
     await choose('Reasoning', 'None');
     await act(() => fail(new Error('Offline')));
-    expect(profile?.aiSettings).toEqual({ model: 'openai/gpt-5.6-luna', reasoningEffort: 'none' });
+    expect(profile?.aiSettings).toEqual({ model: 'openai/gpt-6-luna', reasoningEffort: 'none' });
     expect(renderer.root.findAllByProps({ accessibilityRole: 'alert' })).toHaveLength(0);
   });
 
@@ -129,5 +129,16 @@ describe('quick model settings', () => {
     await mount();
     expect(() => find('Model')).toThrow();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('clamps none reasoning when switching from Luna to Astra', async () => {
+    profile = { aiSettings: { model: 'openai/gpt-6-luna', reasoningEffort: 'none' } };
+    await mount();
+    await choose('Model', 'GPT-6 Astra');
+    expect(update).toHaveBeenCalledWith({
+      settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'low' },
+    });
+    await act(() => find('Reasoning').props.onPress());
+    expect(() => find('Reasoning: None')).toThrow();
   });
 });

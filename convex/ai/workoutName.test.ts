@@ -63,7 +63,7 @@ describe('workout name suggestions', () => {
   });
 
   it('uses account model preferences without including them in the naming prompt', async () => {
-    const aiSettings = { model: 'openai/gpt-5.6-sol', reasoningEffort: 'high' };
+    const aiSettings = { model: 'openai/gpt-6-astra', reasoningEffort: 'high' };
     const context = {
       exercises: ['Squat'],
       previousWorkouts: [{ name: 'Legs', exercises: ['Squat'] }],

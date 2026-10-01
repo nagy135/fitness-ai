@@ -13,7 +13,7 @@ const run = (
 )._handler;
 const patch = vi.fn();
 const ctx = { db: { patch } } as unknown as MutationCtx;
-const settings: AISettings = { model: 'openai/gpt-5.6-terra', reasoningEffort: 'low' };
+const settings: AISettings = { model: 'openai/gpt-6-sol', reasoningEffort: 'low' };
 beforeEach(() => vi.resetAllMocks());
 
 it('persists both preferences on the authenticated profile', async () => {
@@ -28,4 +28,16 @@ it('cannot save preferences without authentication', async () => {
   vi.mocked(requireUserProfile).mockRejectedValue(new Error('Unauthenticated'));
   await expect(run(ctx, { settings })).rejects.toThrow('Unauthenticated');
   expect(patch).not.toHaveBeenCalled();
+});
+
+it('normalizes unsupported Astra none reasoning before persisting', async () => {
+  vi.mocked(requireUserProfile).mockResolvedValue({
+    _id: 'authenticated-user',
+  } as Doc<'userProfiles'>);
+  await run(ctx, {
+    settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'none' },
+  });
+  expect(patch).toHaveBeenCalledExactlyOnceWith('authenticated-user', {
+    aiSettings: { model: 'openai/gpt-6-astra', reasoningEffort: 'low' },
+  });
 });

@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe('workout AI request orchestration', () => {
   it('uses model preferences from the authenticated profile', async () => {
-    const aiSettings = { model: 'openai/gpt-5.6-sol', reasoningEffort: 'high' };
+    const aiSettings = { model: 'openai/gpt-6-astra', reasoningEffort: 'high' };
     const originalQuery = ctx.runQuery;
     ctx.runQuery = ((ref: Parameters<typeof getFunctionName>[0], args: unknown) =>
       getFunctionName(ref) === 'userProfiles:current'
@@ -215,7 +215,6 @@ describe('workout AI request orchestration', () => {
     expect(generateText).toHaveBeenCalledTimes(1);
   });
 });
-
 
 it('copies all retrieved previous sets through the fenced draft addition tool', async () => {
   const sets = [

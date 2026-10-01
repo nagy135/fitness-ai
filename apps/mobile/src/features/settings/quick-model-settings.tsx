@@ -93,7 +93,7 @@ export function QuickModelSettings({
 
   function save(patch: Partial<AISettings>) {
     if (!profile) return;
-    const settings = { ...(desired.current ?? current), ...patch };
+    const settings = resolveAISettings({ ...(desired.current ?? current), ...patch });
     desired.current = settings;
     setDraft(settings);
     setExpanded(undefined);
@@ -146,7 +146,9 @@ export function QuickModelSettings({
           <SettingsSelect
             label="Reasoning"
             value={selected.reasoningEffort}
-            options={AI_REASONING_OPTIONS}
+            options={AI_REASONING_OPTIONS.filter(
+              (effort) => selected.model !== 'openai/gpt-6-astra' || effort.id !== 'none',
+            )}
             expanded={expanded === 'reasoning'}
             onToggle={() => setExpanded(expanded === 'reasoning' ? undefined : 'reasoning')}
             onChange={(reasoningEffort) => save({ reasoningEffort })}
