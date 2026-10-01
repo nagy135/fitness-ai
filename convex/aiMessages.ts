@@ -72,7 +72,19 @@ export const analysisSession = query({
       .withIndex('by_session_role', (q) => q.eq('sessionId', session._id).eq('role', 'assistant'))
       .order('desc')
       .first();
-    return { ...session, response };
+    // Keep the displayed question paired with this answer, even if a newer
+    // request is still running or failed before saving a response.
+    const question = response
+      ? await ctx.db
+          .query('aiMessages')
+          .withIndex('by_session_role', (q) =>
+            q.eq('sessionId', session._id).eq('role', 'user').lte('createdAt', response.createdAt),
+          )
+          .filter((q) => q.lte(q.field('_creationTime'), response._creationTime))
+          .order('desc')
+          .first()
+      : null;
+    return { ...session, response: response ? { ...response, question: question?.text } : null };
   },
 });
 

@@ -32,7 +32,7 @@ beforeEach(() => {
       get: async (id: string) => rows.find((row) => row._id === id) ?? null,
       insert: async (table: string, value: Record<string, unknown>) => {
         const _id = `${table}-${++serial}`;
-        rows.push({ ...value, _id, table });
+        rows.push({ ...value, _id, _creationTime: serial, table });
         return _id;
       },
       patch: async (id: string, value: Record<string, unknown>) => {
@@ -52,6 +52,10 @@ beforeEach(() => {
                 selected = selected.filter((row) => row[key] === value);
                 return index;
               },
+              lte: (key: string, value: number) => {
+                selected = selected.filter((row) => Number(row[key]) <= value);
+                return index;
+              },
             };
             build(index);
             return query;
@@ -61,6 +65,7 @@ beforeEach(() => {
               build({
                 field: (name: string) => name,
                 eq: (name: string, value: unknown) => (row: Row) => row[name] === value,
+                lte: (name: string, value: number) => (row: Row) => Number(row[name]) <= value,
               }),
             );
             return query;
@@ -68,7 +73,9 @@ beforeEach(() => {
           order: (direction: string) => {
             selected.sort(
               (a, b) =>
-                (Number(a[sortField]) - Number(b[sortField])) * (direction === 'asc' ? 1 : -1),
+                (Number(a[sortField]) - Number(b[sortField]) ||
+                  Number(a._creationTime) - Number(b._creationTime)) *
+                (direction === 'asc' ? 1 : -1),
             );
             return query;
           },
@@ -117,7 +124,7 @@ it('restores a named analysis and chart from storage, keeping other sessions sep
   await rename(ctx, { sessionId: first, title: '  My squat  ' });
   expect(await get(ctx, { sessionId: first })).toMatchObject({
     title: 'My squat',
-    response: { text: 'Progress', chart },
+    response: { text: 'Progress', question: 'Graph squat', chart },
   });
   expect((await conversation(ctx, { sessionId: first, paginationOpts: page })).page).toHaveLength(
     2,
@@ -125,6 +132,43 @@ it('restores a named analysis and chart from storage, keeping other sessions sep
   expect(
     (await conversation(ctx, { sessionId: second, paginationOpts: page })).page.map((m) => m.text),
   ).toEqual(['Volume summary']);
+});
+
+it('returns only the latest completed question and answer, ignoring newer unanswered requests', async () => {
+  const id = await create(ctx, { title: 'Squat progress' });
+  vi.spyOn(Date, 'now').mockReturnValue(1000);
+  try {
+    await append(ctx, { mode: 'analysis', role: 'user', text: 'First question', sessionId: id });
+    await append(ctx, { mode: 'analysis', role: 'assistant', text: 'First answer', sessionId: id });
+    await append(ctx, { mode: 'analysis', role: 'user', text: 'Latest question', sessionId: id });
+    await append(ctx, {
+      mode: 'analysis',
+      role: 'assistant',
+      text: 'Latest answer',
+      chart,
+      sessionId: id,
+    });
+    await append(ctx, { mode: 'analysis', role: 'user', text: 'Still running', sessionId: id });
+    const other = await create(ctx, { title: 'Other session' });
+    await append(ctx, { mode: 'analysis', role: 'user', text: 'Unrelated', sessionId: other });
+    expect((await get(ctx, { sessionId: id }))?.response).toMatchObject({
+      question: 'Latest question',
+      text: 'Latest answer',
+      chart,
+    });
+    expect((await conversation(ctx, { sessionId: id, paginationOpts: page })).page).toHaveLength(5);
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
+it('does not invent a question for an answer-only saved session', async () => {
+  const id = await create(ctx, { title: 'Imported analysis' });
+  await append(ctx, { mode: 'analysis', role: 'assistant', text: 'Saved answer', sessionId: id });
+  expect((await get(ctx, { sessionId: id }))?.response).toMatchObject({
+    text: 'Saved answer',
+    question: undefined,
+  });
 });
 
 it('lists and restores only the authenticated account’s sessions, newest first, across pages', async () => {
