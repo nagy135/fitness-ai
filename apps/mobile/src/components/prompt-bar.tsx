@@ -4,6 +4,7 @@ import { ArrowUp, Mic, Square } from 'lucide-react-native';
 import { useAppTheme } from './theme-provider';
 import { useDictation } from '@/features/voice/use-dictation';
 import { ErrorNotice } from './error-notice';
+import { AiThinkingIndicator } from './ai-thinking-indicator';
 
 export function PromptBar({
   placeholder,
@@ -82,11 +83,7 @@ export function PromptBar({
           onPress={() => void submit()}
         >
           {processing ? (
-            <ActivityIndicator
-              color={colors.accentInk}
-              size="small"
-              style={{ transform: [{ scale: 2 }] }}
-            />
+            <AiThinkingIndicator color={colors.accentInk} />
           ) : (
             <ArrowUp color={colors.accentInk} size={22} />
           )}
