@@ -8,7 +8,7 @@
     "./settings": "./src/settings.ts"
   },
   "dependencies": {
-    "@openrouter/ai-sdk-provider": "^3.0.0",
+    "@ai-sdk/openai": "4.0.51",
     "ai": "^7.0.84",
     "zod": "^4.5.4"
   }
