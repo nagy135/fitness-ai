@@ -51,7 +51,8 @@ OPENROUTER_API_KEY=your-key-here
 
 Choose the model and reasoning effort in Settings → AI preferences. Preferences
 are saved per account and apply to logging, analysis, and name suggestions.
-New and existing accounts without saved preferences default to GPT-5.6 Terra / Low.
+New and existing accounts without saved preferences default to GPT-6 Sol / Low.
+Saved GPT-5.6 preferences automatically use the corresponding GPT-6 tier on the next request.
 The legacy `AI_MODEL` environment variable no longer overrides user preferences.
 
 Do not commit `.env.local`. AI and authentication secrets are server-only and must never use an `EXPO_PUBLIC_` prefix.
@@ -304,12 +305,30 @@ action startup; `--success` also shows Convex's function durations, including th
 client's preparation mutations. Logs are operational diagnostics, not a persistent
 analytics table; capture the stream during a test if you need to keep the results.
 
-AI requests use only the latest user message. Workout logging includes the fresh
-current draft and defined exercise catalog; saved workouts and exercise histories
-are retrieved through read-only tools when needed. Analysis retrieves saved training
-data through its read-only tools. Previous chat messages remain visible in the
-conversation drawer but are never loaded into model context. Follow-ups must name
-their target when it cannot be resolved from the current workout data.
+Workout logging uses only the latest user message together with the fresh current
+draft and defined exercise catalog; saved workouts and exercise histories are
+retrieved through read-only tools when needed. Analysis includes the entire selected
+session in chronological order, including user messages, assistant answers, and
+saved charts, so follow-ups and clarification answers retain their context. New
+analysis sessions start with no previous conversation. Training facts are still
+retrieved fresh through read-only tools; earlier answers are not authoritative state.
+
+Analysis sessions save automatically to your account, including prompts, answers,
+and charts. In Analysis mode, use the history icon to reopen or rename a session,
+or the **+** button to start another without deleting earlier results. The main
+screen shows the latest assistant reply; open Conversation for earlier replies.
+The latest session is restored when the app opens. **Earlier analysis messages** keeps
+conversations from before sessions were introduced accessible. Deploy the updated
+Convex schema and functions before using this feature in a new mobile build.
+
+Analysis answers and saved assistant messages render Markdown, including tables
+and fenced `mermaid` diagrams. Diagrams support zoom, expansion, and a readable
+source fallback for invalid syntax. Vertical swipes over Markdown and diagrams
+scroll the surrounding native screen. The renderer uses Expo DOM components and
+bundles Mermaid locally, so saved diagrams work offline. Raw HTML, remote images,
+and Mermaid configuration directives are disabled. Metro bundle splitting is
+disabled to work around Expo 57's missing shared chunks during DOM export; the
+web/DOM JavaScript bundle is consequently larger.
 
 To browse or edit the nixpi database, open
 `https://fitness-ai-dashboard.infiniter.tech` and log in with
