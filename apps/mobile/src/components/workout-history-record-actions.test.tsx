@@ -5,6 +5,7 @@ import { WorkoutHistoryRecordActions } from './workout-history-record-actions';
 
 vi.mock('react-native', () => ({ Pressable: 'Pressable', Text: 'Text', View: 'View' }));
 vi.mock('lucide-react-native', () => ({
+  CalendarDays: 'CalendarDays',
   Trash2: 'Trash2',
   Pencil: 'Pencil',
   ChevronDown: 'ChevronDown',
@@ -12,6 +13,7 @@ vi.mock('lucide-react-native', () => ({
 }));
 vi.mock('@fitness/ui', () => ({ Button: 'Button', IconButton: 'IconButton' }));
 vi.mock('./theme-provider', () => ({ useAppTheme: () => ({ colors: { danger: 'red' } }) }));
+vi.mock('./workout-history-date-picker', () => ({ WorkoutHistoryDatePicker: 'DatePicker' }));
 
 let renderer: ReactTestRenderer;
 const onDelete = vi.fn<() => Promise<unknown>>();

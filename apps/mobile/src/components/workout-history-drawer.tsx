@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { CalendarDays, Dumbbell, List } from 'lucide-react-native';
 import { cn } from '@fitness/ui';
 import { useMutation } from 'convex/react';
+import { router } from 'expo-router';
 import { api } from '@fitness/convex/api';
 import type { Id } from '@fitness/convex/data-model';
 import { useAppTheme } from './theme-provider';
@@ -155,6 +156,12 @@ export function WorkoutHistoryDrawer({
               >
                 <WorkoutHistoryRecordActions
                   dateLabel={formatWorkoutDate(workout.performedAt)}
+                  performedAt={workout.performedAt}
+                  onChangeDate={async (performedAt) => {
+                    await beginEdit({ workoutId: workout._id, performedAt });
+                    onClose();
+                    router.push('/workout/confirm');
+                  }}
                   expanded={expanded}
                   onToggle={toggleWorkout}
                   onDelete={() => deleteWorkout({ workoutId: workout._id })}

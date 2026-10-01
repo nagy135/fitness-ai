@@ -3,7 +3,26 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { WorkoutTable } from './workout-table';
 
+const motion = vi.hoisted(() => ({
+  scrollTo: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  timing: vi.fn(),
+  reduced: vi.fn(async () => false),
+}));
 vi.mock('react-native', () => ({
+  AccessibilityInfo: { isReduceMotionEnabled: motion.reduced },
+  Animated: {
+    View: 'AnimatedView',
+    Value: class {
+      setValue() {}
+      interpolate() {
+        return 1;
+      }
+    },
+    timing: motion.timing,
+    sequence: () => ({ start: motion.start, stop: motion.stop }),
+  },
   Pressable: 'Pressable',
   ScrollView: 'ScrollView',
   Text: 'Text',
@@ -36,14 +55,29 @@ async function update(next: Exercises) {
   await act(() => renderer.update(createElement(WorkoutTable, { ...props, exercises })));
 }
 beforeEach(async () => {
+  vi.clearAllMocks();
+  motion.reduced.mockResolvedValue(false);
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+    callback();
+    return 1;
+  });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
   exercises = ['Bench', 'Squat'].map((name) => ({
     rowId: name,
     name,
     sets: [{ setId: `${name}-1`, reps: 8, weightKg: 80 }],
   }));
   await act(() => {
-    renderer = create(createElement(WorkoutTable, { ...props, exercises }));
+    renderer = create(createElement(WorkoutTable, { ...props, exercises }), {
+      createNodeMock: (element) =>
+        String(element.type) === 'ScrollView'
+          ? { scrollTo: motion.scrollTo }
+          : {
+              measureLayout: (_relative: unknown, success: (x: number, y: number) => void) =>
+                success(0, 240),
+            },
+    });
   });
 });
 afterEach(async () => {
@@ -51,7 +85,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('unfolds all exercises and set details changed in one update', async () => {
+it('unfolds changed exercises while keeping individual sets folded', async () => {
   expect(isOpen('Bench, 1 set')).toBe(false);
   await update(
     exercises.map((exercise) => ({
@@ -67,8 +101,14 @@ it('unfolds all exercises and set details changed in one update', async () => {
           String(node.type) === 'Pressable' &&
           node.props.accessibilityLabel?.startsWith(`Edit ${name} set 1`),
       )[0].props.accessibilityState.expanded,
-    ).toBe(true);
+    ).toBe(false);
   }
+  expect(motion.scrollTo).toHaveBeenCalledExactlyOnceWith({ y: 224, animated: false });
+  expect(motion.start).toHaveBeenCalledTimes(4);
+  expect(motion.timing.mock.calls.filter((call) => call[1].toValue === 1.025)).toHaveLength(2);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: 'New or updated set' })).toHaveLength(
+    2,
+  );
 });
 
 it('respects manual collapse and unchanged query refreshes, then reopens on another edit', async () => {
@@ -90,4 +130,60 @@ it('opens newly added exercises and lets All exercises collapse everything', asy
   await act(() => find('Show all exercises').props.onPress());
   await update(structuredClone(exercises));
   expect(isOpen('Row, 1 set')).toBe(false);
+});
+
+it('scrolls and pulses again when values change in an already open exercise, but not on identical refreshes', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  await update(
+    exercises.map((exercise, index) => (index ? exercise : { ...exercise, notes: 'Pause' })),
+  );
+  expect(motion.scrollTo).toHaveBeenCalledTimes(1);
+  expect(motion.start).toHaveBeenCalledTimes(1);
+  await update(structuredClone(exercises));
+  expect(motion.scrollTo).toHaveBeenCalledTimes(1);
+  expect(motion.start).toHaveBeenCalledTimes(1);
+  await update(
+    exercises.map((exercise, index) => (index ? exercise : { ...exercise, notes: 'Slow' })),
+  );
+  expect(motion.scrollTo).toHaveBeenCalledTimes(2);
+  expect(motion.start).toHaveBeenCalledTimes(2);
+});
+
+it('scrolls without pulsing when reduced motion is enabled', async () => {
+  motion.reduced.mockResolvedValue(true);
+  await update(
+    exercises.map((exercise, index) => (index ? exercise : { ...exercise, notes: 'Pause' })),
+  );
+  expect(motion.scrollTo).toHaveBeenCalledTimes(1);
+  expect(motion.start).not.toHaveBeenCalled();
+});
+
+it('pulses only added or changed sets, without replaying on manual reopening', async () => {
+  await update(
+    exercises.map((exercise, index) =>
+      index
+        ? exercise
+        : {
+            ...exercise,
+            sets: [...exercise.sets, { setId: 'Bench-2', reps: 12, weightKg: 80 }],
+          },
+    ),
+  );
+  expect(motion.start).toHaveBeenCalledTimes(2); // Exercise and new set, not the unchanged set.
+  await update(structuredClone(exercises));
+  expect(motion.start).toHaveBeenCalledTimes(2);
+  await act(() => find('Bench, 2 sets').props.onPress());
+  await act(() => find('Bench, 2 sets').props.onPress());
+  expect(motion.start).toHaveBeenCalledTimes(2);
+  await update(
+    exercises.map((exercise, index) =>
+      index
+        ? exercise
+        : {
+            ...exercise,
+            sets: exercise.sets.map((set, setIndex) => (setIndex ? set : { ...set, reps: 10 })),
+          },
+    ),
+  );
+  expect(motion.start).toHaveBeenCalledTimes(4);
 });

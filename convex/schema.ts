@@ -66,6 +66,7 @@ export default defineSchema({
     userId: v.id('userProfiles'),
     name: v.optional(v.string()),
     editingWorkoutId: v.optional(v.id('workouts')),
+    performedAt: v.optional(v.number()),
     date: v.string(),
     status: v.union(v.literal('active'), v.literal('confirming')),
     exercises: v.array(draftExerciseValidator),

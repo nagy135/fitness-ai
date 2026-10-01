@@ -357,9 +357,15 @@ describe('conversation drawer history', () => {
   });
 });
 
-const editHistory = handler<{ workoutId: Id<'workouts'> }, Id<'workoutDrafts'>>(beginEdit);
+const editHistory = handler<
+  { workoutId: Id<'workouts'>; performedAt?: number },
+  Id<'workoutDrafts'>
+>(beginEdit);
 const cancelHistory = handler<{ draftId: Id<'workoutDrafts'> }, void>(cancelEdit);
-const save = handler<{ draftId: Id<'workoutDrafts'>; name?: string }, Id<'workouts'>>(confirmDraft);
+const save = handler<
+  { draftId: Id<'workoutDrafts'>; name?: string; performedAt?: number },
+  Id<'workouts'>
+>(confirmDraft);
 const discard = handler<{ draftId: Id<'workoutDrafts'> }, void>(discardDraft);
 const erase = handler<{ workoutId: Id<'workouts'> }, void>(deleteWorkout);
 const update = handler<
@@ -435,6 +441,94 @@ describe('discarding from workout review', () => {
 
 describe('history editing through shared workout tools', () => {
   beforeEach(seedWorkout);
+
+  it('changes the date only on confirmation, preserving the ordinary draft and workout contents', async () => {
+    const ordinary = structuredClone(rows[0]);
+    const original = structuredClone(rows.find((row) => row._id === savedId)!);
+    // Noon in UTC+14 falls on the previous UTC day; retain this exact timestamp.
+    const performedAt = Date.parse('2026-09-10T12:00:00+14:00');
+    const editingId = await editHistory(ctx, { workoutId: savedId, performedAt });
+    expect((await currentForUser(ctx, userId))?.performedAt).toBe(performedAt);
+    expect(rows.find((row) => row._id === savedId)).toEqual(original);
+    expect(rows.find((row) => row._id === draftId)).toEqual(ordinary);
+    await save(ctx, { draftId: editingId });
+    expect(rows.find((row) => row._id === savedId)).toMatchObject({
+      ...original,
+      performedAt,
+    });
+    expect(await currentForUser(ctx, userId)).toEqual(ordinary);
+    await save(ctx, { draftId: editingId });
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(1);
+  });
+
+  it('cancels a date edit without touching history', async () => {
+    const original = structuredClone(rows);
+    const performedAt = Date.parse('2026-09-10T12:00:00Z');
+    const editingId = await editHistory(ctx, { workoutId: savedId, performedAt });
+    await cancelHistory(ctx, { draftId: editingId });
+    expect(rows).toEqual(original);
+  });
+
+  it('changes the date of an already open edit without losing edits or changing saved history', async () => {
+    const original = structuredClone(rows.find((row) => row._id === savedId)!);
+    const ordinary = structuredClone(rows[0]);
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const draft = (await currentForUser(ctx, userId))!;
+    const row = draft.exercises[0];
+    await update(ctx, {
+      rowId: row.rowId,
+      setId: row.sets[0].setId,
+      patch: { reps: 12 },
+      source: 'user_ui',
+    });
+    const editedExercises = structuredClone((await currentForUser(ctx, userId))!.exercises);
+    const performedAt = Date.parse('2026-09-22T12:00:00+02:00');
+    expect(await editHistory(ctx, { workoutId: savedId, performedAt })).toBe(editingId);
+    expect(await editHistory(ctx, { workoutId: savedId, performedAt })).toBe(editingId);
+    expect(await currentForUser(ctx, userId)).toMatchObject({
+      _id: editingId,
+      performedAt,
+      date: '2026-09-22',
+      exercises: editedExercises,
+    });
+    expect(rows.filter((item) => item.table === 'workoutDrafts')).toHaveLength(2);
+    expect(rows.find((item) => item._id === savedId)).toEqual(original);
+    expect(rows.find((item) => item._id === draftId)).toEqual(ordinary);
+    await save(ctx, { draftId: editingId });
+    expect(rows.find((item) => item._id === savedId)).toMatchObject({
+      performedAt,
+      exercises: [{ sets: [{ reps: 12 }] }],
+    });
+    expect(await currentForUser(ctx, userId)).toEqual(ordinary);
+  });
+
+  it('rejects an invalid date without modifying an existing edit', async () => {
+    await editHistory(ctx, { workoutId: savedId });
+    const original = structuredClone(rows);
+    await expect(editHistory(ctx, { workoutId: savedId, performedAt: NaN })).rejects.toThrow(
+      'Invalid workout date',
+    );
+    expect(rows).toEqual(original);
+  });
+
+  it.each([NaN, Infinity, -Infinity, 9e15])(
+    'rejects invalid workout dates: %s',
+    async (performedAt) => {
+      const original = structuredClone(rows);
+      await expect(editHistory(ctx, { workoutId: savedId, performedAt })).rejects.toThrow(
+        'Invalid workout date',
+      );
+      expect(rows).toEqual(original);
+    },
+  );
+
+  it('keeps the saved timestamp when confirming an older editing draft', async () => {
+    const originalDate = rows.find((row) => row._id === savedId)!.performedAt;
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    delete rows.find((row) => row._id === editingId)!.performedAt;
+    await save(ctx, { draftId: editingId });
+    expect(rows.find((row) => row._id === savedId)!.performedAt).toBe(originalDate);
+  });
 
   it('prefills the saved name and changes it only at explicit confirmation', async () => {
     rows.find((row) => row._id === savedId)!.name = 'Push A';
@@ -541,6 +635,11 @@ describe('history editing through shared workout tools', () => {
     await finish(ctx, { requestId: first, text: 'Done', failed: false });
     const editingId = await editHistory(ctx, { workoutId: savedId });
     await running('Edit history');
+    const original = structuredClone(rows);
+    await expect(editHistory(ctx, { workoutId: savedId, performedAt: Date.now() })).rejects.toThrow(
+      'Wait for',
+    );
+    expect(rows).toEqual(original);
     await expect(save(ctx, { draftId: editingId })).rejects.toThrow('Wait for');
     await expect(cancelHistory(ctx, { draftId: editingId })).rejects.toThrow('Wait for');
   });
@@ -569,6 +668,9 @@ describe('history editing through shared workout tools', () => {
     const otherId = 'other-workout' as Id<'workouts'>;
     rows.push({ ...rows.find((row) => row._id === savedId)!, _id: otherId });
     await expect(editHistory(ctx, { workoutId: otherId })).rejects.toThrow('Save or cancel');
+    await expect(editHistory(ctx, { workoutId: otherId, performedAt: Date.now() })).rejects.toThrow(
+      'Save or cancel',
+    );
     expect(rows.filter((row) => row.table === 'workoutDrafts')).toHaveLength(2);
   });
 
@@ -580,5 +682,43 @@ describe('history editing through shared workout tools', () => {
     expect(rows.find((row) => row._id === savedId)).toMatchObject({
       exercises: [{ sets: [{ reps: 8 }] }],
     });
+  });
+});
+
+describe('choosing the workout date during review', () => {
+  function fillDraft() {
+    rows[0].exercises = [
+      { rowId: 'row-1', exerciseId, name: 'Push-ups', sets: [{ setId: 'set-1', reps: 10 }] },
+    ];
+  }
+  it('saves the exact selected local-day timestamp only at confirmation and keeps retries idempotent', async () => {
+    fillDraft();
+    const performedAt = Date.parse('2026-09-30T12:00:00+14:00');
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(0);
+    const id = await save(ctx, { draftId, name: 'Morning', performedAt });
+    expect(rows.find((row) => row._id === id)).toMatchObject({ performedAt, name: 'Morning' });
+    expect(await save(ctx, { draftId, performedAt: Date.now() })).toBe(id);
+    expect(rows.find((row) => row._id === id)!.performedAt).toBe(performedAt);
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(1);
+  });
+  it.each([NaN, Infinity, -Infinity, 8.65e15])(
+    'rejects invalid dates before writing or deleting the draft: %s',
+    async (performedAt) => {
+      fillDraft();
+      const before = structuredClone(rows);
+      await expect(save(ctx, { draftId, performedAt })).rejects.toThrow('Invalid workout date');
+      expect(rows).toEqual(before);
+    },
+  );
+  it('applies a review date to a history edit only when confirmed, preserving the ordinary draft', async () => {
+    seedWorkout();
+    const ordinary = structuredClone(rows[0]);
+    const original = structuredClone(rows.find((row) => row._id === savedId));
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const performedAt = Date.parse('2026-09-29T12:00:00-10:00');
+    expect(rows.find((row) => row._id === savedId)).toEqual(original);
+    await save(ctx, { draftId: editingId, performedAt });
+    expect(rows.find((row) => row._id === savedId)).toMatchObject({ performedAt });
+    expect(await currentForUser(ctx, userId)).toEqual(ordinary);
   });
 });

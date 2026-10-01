@@ -11,7 +11,7 @@ export function WorkoutHistoryCalendar({
 }: {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  workoutCounts: ReadonlyMap<string, number>;
+  workoutCounts?: ReadonlyMap<string, number>;
 }) {
   const { colors } = useAppTheme();
   const today = new Date();
@@ -55,13 +55,13 @@ export function WorkoutHistoryCalendar({
             if (!date) return <View key={`blank-${weekday}`} className="flex-1" />;
             const key = historyDayKey(date);
             const selected = key === selectedKey;
-            const count = workoutCounts.get(key) ?? 0;
+            const count = workoutCounts?.get(key) ?? 0;
             const isToday = key === todayKey;
             return (
               <Pressable
                 key={key}
                 accessibilityRole="button"
-                accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${isToday ? ', today' : ''}, ${count} ${count === 1 ? 'workout' : 'workouts'}`}
+                accessibilityLabel={`${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${isToday ? ', today' : ''}${workoutCounts ? `, ${count} ${count === 1 ? 'workout' : 'workouts'}` : ''}`}
                 accessibilityState={{ selected }}
                 onPress={() => onSelectDate(date)}
                 className={cn(
@@ -99,10 +99,14 @@ export function WorkoutHistoryCalendar({
         </View>
       ))}
       <View className="mt-2 flex-row items-center justify-between border-t border-line pt-1 dark:border-line-dark">
-        <View className="flex-row items-center gap-2">
-          <View className="h-1.5 w-1.5 rounded-full bg-accent dark:bg-accent-dark" />
-          <Text className="text-xs text-muted dark:text-muted-dark">Saved workout</Text>
-        </View>
+        {workoutCounts ? (
+          <View className="flex-row items-center gap-2">
+            <View className="h-1.5 w-1.5 rounded-full bg-accent dark:bg-accent-dark" />
+            <Text className="text-xs text-muted dark:text-muted-dark">Saved workout</Text>
+          </View>
+        ) : (
+          <View />
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go to today"

@@ -1,25 +1,31 @@
 import { useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
+import { CalendarDays, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react-native';
 import { Button, IconButton } from '@fitness/ui';
 import { useAppTheme } from './theme-provider';
+import { WorkoutHistoryDatePicker } from './workout-history-date-picker';
 
 export function WorkoutHistoryRecordActions({
   dateLabel,
   onDelete,
   onEdit,
+  performedAt,
+  onChangeDate,
   expanded,
   onToggle,
 }: {
   dateLabel: string;
   onDelete: () => Promise<unknown>;
   onEdit?: () => Promise<unknown>;
+  performedAt?: number;
+  onChangeDate?: (performedAt: number) => Promise<unknown>;
   expanded?: boolean;
   onToggle?: () => void;
 }) {
   const { colors } = useAppTheme();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [changingDate, setChangingDate] = useState(false);
   const [error, setError] = useState<string>();
   const locked = useRef(false);
   const Chevron = expanded ? ChevronUp : ChevronDown;
@@ -77,10 +83,27 @@ export function WorkoutHistoryRecordActions({
             {dateLabel}
           </Text>
         )}
+        {onChangeDate && performedAt !== undefined ? (
+          <IconButton
+            accessibilityLabel={`Change date of workout from ${dateLabel}`}
+            accessibilityHint="Choose a new date, then review and save the change"
+            accessibilityState={{
+              disabled: confirming || deleting || changingDate,
+              expanded: changingDate,
+            }}
+            disabled={confirming || deleting || changingDate}
+            onPress={() => {
+              setError(undefined);
+              setChangingDate(true);
+            }}
+          >
+            <CalendarDays color={colors.accent} size={20} />
+          </IconButton>
+        ) : null}
         {onEdit ? (
           <IconButton
             accessibilityLabel={`Edit workout from ${dateLabel}`}
-            disabled={confirming || deleting}
+            disabled={confirming || deleting || changingDate}
             onPress={() => void editWorkout()}
           >
             <Pencil color={colors.accent} size={20} />
@@ -88,13 +111,23 @@ export function WorkoutHistoryRecordActions({
         ) : null}
         <IconButton
           accessibilityLabel={`Delete workout from ${dateLabel}`}
-          accessibilityState={{ disabled: confirming || deleting, expanded: confirming }}
-          disabled={confirming || deleting}
+          accessibilityState={{
+            disabled: confirming || deleting || changingDate,
+            expanded: confirming,
+          }}
+          disabled={confirming || deleting || changingDate}
           onPress={() => setConfirming(true)}
         >
           <Trash2 color={colors.danger} size={20} />
         </IconButton>
       </View>
+      {onChangeDate && performedAt !== undefined && changingDate ? (
+        <WorkoutHistoryDatePicker
+          performedAt={performedAt}
+          onReview={onChangeDate}
+          onCancel={() => setChangingDate(false)}
+        />
+      ) : null}
       {error && !confirming ? (
         <Text accessibilityRole="alert" className="text-sm text-danger dark:text-danger-dark">
           {error}

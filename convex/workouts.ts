@@ -42,22 +42,39 @@ export const remove = mutation({
 // History edits use the same validated draft tools as a new workout. The ordinary
 // draft stays intact and becomes current again when this editing draft is removed.
 export const beginEdit = mutation({
-  args: { workoutId: v.id('workouts') },
+  args: { workoutId: v.id('workouts'), performedAt: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
     const workout = await ctx.db.get(args.workoutId);
     if (!workout || workout.userId !== user._id) throw new ConvexError('Workout not found');
     const current = await currentForUser(ctx, user._id);
-    if (current?.editingWorkoutId === workout._id) return current._id;
-    if (current?.editingWorkoutId)
+    if (current?.editingWorkoutId && current.editingWorkoutId !== workout._id)
       throw new ConvexError('Save or cancel your current history edit first');
-    await assertWorkoutRequest(ctx, user._id, workout.sourceDraftId, { source: 'user_ui' });
+    if (current?.editingWorkoutId === workout._id && args.performedAt === undefined)
+      return current._id;
+    await assertWorkoutRequest(ctx, user._id, current?._id ?? workout.sourceDraftId, {
+      source: 'user_ui',
+    });
+    const performedAt = args.performedAt ?? workout.performedAt;
+    if (!Number.isFinite(performedAt) || !Number.isFinite(new Date(performedAt).getTime()))
+      throw new ConvexError('Invalid workout date');
     const now = Date.now();
+    if (current?.editingWorkoutId === workout._id) {
+      // Reuse this workout's editing draft so date changes and retries preserve
+      // any set/name edits. Saved history changes only at confirmation.
+      await ctx.db.patch(current._id, {
+        date: new Date(performedAt).toISOString().slice(0, 10),
+        performedAt,
+        updatedAt: now,
+      });
+      return current._id;
+    }
     return ctx.db.insert('workoutDrafts', {
       userId: user._id,
       editingWorkoutId: workout._id,
       name: workout.name,
-      date: new Date(workout.performedAt).toISOString().slice(0, 10),
+      date: new Date(performedAt).toISOString().slice(0, 10),
+      performedAt,
       status: 'active',
       exercises: workout.exercises.map((row) => ({
         rowId: crypto.randomUUID(),
@@ -113,7 +130,11 @@ export const discardDraft = mutation({
 });
 
 export const confirmDraft = mutation({
-  args: { draftId: v.id('workoutDrafts'), name: v.optional(v.string()) },
+  args: {
+    draftId: v.id('workoutDrafts'),
+    name: v.optional(v.string()),
+    performedAt: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const user = await requireUserProfile(ctx);
     const receipt = await ctx.db
@@ -126,6 +147,11 @@ export const confirmDraft = mutation({
 
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) throw new ConvexError('Workout draft not found');
+    if (
+      args.performedAt !== undefined &&
+      (!Number.isFinite(args.performedAt) || !Number.isFinite(new Date(args.performedAt).getTime()))
+    )
+      throw new ConvexError('Invalid workout date');
     const name = (args.name ?? draft.name)?.trim() || undefined;
     if (name && name.length > 100)
       throw new ConvexError('Workout name must be 100 characters or fewer');
@@ -160,7 +186,12 @@ export const confirmDraft = mutation({
       const workout = await ctx.db.get(draft.editingWorkoutId);
       if (!workout || workout.userId !== user._id) throw new ConvexError('Workout not found');
       workoutId = workout._id;
-      await ctx.db.patch(workoutId, { name, exercises, notes: draft.notes });
+      await ctx.db.patch(workoutId, {
+        name,
+        exercises,
+        notes: draft.notes,
+        performedAt: args.performedAt ?? draft.performedAt ?? workout.performedAt,
+      });
     } else {
       if ((await currentForUser(ctx, user._id))?._id !== draft._id)
         throw new ConvexError('Workout draft is not currently selected');
@@ -168,7 +199,7 @@ export const confirmDraft = mutation({
         userId: user._id,
         sourceDraftId: draft._id,
         name,
-        performedAt: Date.parse(`${draft.date}T12:00:00.000Z`),
+        performedAt: args.performedAt ?? Date.parse(`${draft.date}T12:00:00.000Z`),
         exercises,
         notes: draft.notes,
         createdAt: now,

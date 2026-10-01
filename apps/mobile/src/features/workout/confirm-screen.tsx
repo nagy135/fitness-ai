@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
-import { ArrowLeft, Check } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { api } from '@fitness/convex/api';
 import { normalizeSetForTrackingType } from '@fitness/domain';
 import { Button, IconButton, Input } from '@fitness/ui';
@@ -13,6 +13,7 @@ import { ErrorNotice } from '@/components/error-notice';
 import { DisplayText } from '@/components/display-text';
 import { useWorkoutName } from './use-workout-name';
 import { SetMeasurement } from './set-measurement';
+import { WorkoutHistoryCalendar } from '@/components/workout-history-calendar';
 
 export default function ConfirmWorkoutScreen() {
   const { colors } = useAppTheme();
@@ -21,6 +22,15 @@ export default function ConfirmWorkoutScreen() {
   const catalog = useQuery(api.exercises.list, { includeArchived: true });
   const confirm = useMutation(api.workouts.confirmDraft);
   const discard = useMutation(api.workouts.discardDraft);
+  const [today] = useState(() => new Date());
+  const [dateSelection, setDateSelection] = useState<{ draftId: string; date: Date }>();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const selectedDate =
+    dateSelection?.draftId === draft?._id && dateSelection
+      ? dateSelection.date
+      : draft?.editingWorkoutId
+        ? new Date(draft.performedAt ?? `${draft.date}T12:00:00`)
+        : today;
   const [saving, setSaving] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [error, setError] = useState<string>();
@@ -34,10 +44,20 @@ export default function ConfirmWorkoutScreen() {
   async function finish() {
     if (!draft || !canConfirm || locked.current) return;
     locked.current = true;
+    setDatePickerOpen(false);
     setSaving(true);
     setError(undefined);
     try {
-      await confirm({ draftId: draft._id, name });
+      const performedAt =
+        draft.editingWorkoutId && dateSelection?.draftId !== draft._id
+          ? selectedDate.getTime()
+          : new Date(
+              selectedDate.getFullYear(),
+              selectedDate.getMonth(),
+              selectedDate.getDate(),
+              12,
+            ).getTime();
+      await confirm({ draftId: draft._id, name, performedAt });
       router.replace(draft.editingWorkoutId ? '/?mode=workout' : '/?mode=analysis');
     } catch {
       setError('Your workout could not be saved. Check your connection and try again.');
@@ -69,19 +89,51 @@ export default function ConfirmWorkoutScreen() {
         </IconButton>
       }
     >
-      <View className="px-5 pb-4 pt-2">
-        <DisplayText className="text-[48px] leading-[54px]">Review your workout.</DisplayText>
-        <Text className="mt-3 text-base leading-6 text-muted dark:text-muted-dark">
-          {draft?.editingWorkoutId
-            ? 'Check your changes below. Saving updates this workout in history.'
-            : 'Check your sets below. You can edit saved workouts from history.'}
-        </Text>
+      <View className="px-5 pb-2 pt-1">
+        <DisplayText className="text-[32px] leading-[38px]">Review workout.</DisplayText>
       </View>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 py-4"
+        contentContainerClassName="gap-4 px-5 py-3"
         keyboardShouldPersistTaps="handled"
       >
+        {draft ? (
+          <View className="gap-3">
+            <Text className="text-sm text-muted dark:text-muted-dark">Workout date</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Change workout date"
+              accessibilityHint="Choose a date to save with this workout"
+              accessibilityState={{ expanded: datePickerOpen, disabled: saving }}
+              disabled={saving}
+              onPress={() => setDatePickerOpen((open) => !open)}
+              className="min-h-12 flex-row items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 active:opacity-70 dark:border-line-dark dark:bg-panel-dark"
+            >
+              <CalendarDays size={21} color={colors.accent} />
+              <Text className="flex-1 text-base font-bold text-ink dark:text-ink-dark">
+                {selectedDate.toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </Text>
+              {datePickerOpen ? (
+                <ChevronUp size={18} color={colors.muted} />
+              ) : (
+                <ChevronDown size={18} color={colors.muted} />
+              )}
+            </Pressable>
+            {datePickerOpen ? (
+              <WorkoutHistoryCalendar
+                selectedDate={selectedDate}
+                onSelectDate={(date) => {
+                  if (!locked.current) setDateSelection({ draftId: draft._id, date });
+                }}
+              />
+            ) : null}
+          </View>
+        ) : null}
         <View className="gap-2">
           <Input
             label="Workout name (optional)"
@@ -93,16 +145,14 @@ export default function ConfirmWorkoutScreen() {
             autoCapitalize="sentences"
             returnKeyType="done"
           />
-          <Text
-            accessibilityLiveRegion="polite"
-            className="text-sm text-muted dark:text-muted-dark"
-          >
-            {suggesting
-              ? 'Looking for a name from your last 5 workouts…'
-              : suggestionFailed
-                ? 'Suggestion unavailable. Add a name or leave it blank.'
-                : 'Suggestions follow names and exercises from your last 5 workouts. Edit or leave blank.'}
-          </Text>
+          {suggesting || suggestionFailed ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              className="text-sm text-muted dark:text-muted-dark"
+            >
+              {suggesting ? 'Suggesting a name…' : 'Add a name or leave it blank.'}
+            </Text>
+          ) : null}
         </View>
         {draft?.exercises.map((exercise) => {
           const trackingType =
@@ -152,15 +202,46 @@ export default function ConfirmWorkoutScreen() {
         ) : null}
       </ScrollView>
       <ErrorNotice message={error} />
-      <View className="gap-2 border-t border-line px-5 pb-4 pt-4 dark:border-line-dark">
-        <Button disabled={!canConfirm} loading={saving} onPress={() => void finish()}>
-          {draft?.editingWorkoutId ? 'Save changes' : 'Confirm workout'}
-        </Button>
-        <Button variant="ghost" disabled={saving} onPress={back}>
-          Continue workout
-        </Button>
+      <View className="gap-2 border-t border-line px-5 py-3 dark:border-line-dark">
+        <View className="flex-row gap-2">
+          <Button
+            className="flex-1 px-2"
+            accessibilityLabel={
+              draft?.editingWorkoutId ? 'Save workout changes' : 'Confirm workout'
+            }
+            disabled={!canConfirm || confirmingDiscard}
+            loading={saving && !confirmingDiscard}
+            onPress={() => void finish()}
+          >
+            Save
+          </Button>
+          <Button
+            className="flex-1 px-2"
+            variant="secondary"
+            accessibilityLabel="Continue workout"
+            disabled={saving}
+            onPress={back}
+          >
+            Back
+          </Button>
+          <Button
+            className="flex-1 px-2"
+            variant="ghost"
+            textClassName="text-danger dark:text-danger-dark"
+            accessibilityLabel={
+              draft?.editingWorkoutId ? 'Discard workout changes' : 'Discard workout'
+            }
+            disabled={saving || confirmingDiscard}
+            onPress={() => setConfirmingDiscard(true)}
+          >
+            Discard
+          </Button>
+        </View>
         {confirmingDiscard ? (
-          <View accessibilityLiveRegion="polite" className="gap-3 rounded-2xl bg-soft p-4 dark:bg-soft-dark">
+          <View
+            accessibilityLiveRegion="polite"
+            className="gap-3 rounded-2xl bg-soft p-4 dark:bg-soft-dark"
+          >
             <Text className="text-base font-bold text-ink dark:text-ink-dark">
               {draft?.editingWorkoutId ? 'Discard changes?' : 'Discard this workout?'}
             </Text>
@@ -176,7 +257,7 @@ export default function ConfirmWorkoutScreen() {
                 disabled={saving}
                 onPress={() => setConfirmingDiscard(false)}
               >
-                Keep workout
+                Keep
               </Button>
               <Button
                 className="flex-1"
@@ -184,20 +265,11 @@ export default function ConfirmWorkoutScreen() {
                 loading={saving}
                 onPress={() => void discardAndExit()}
               >
-                Discard & exit
+                Discard
               </Button>
             </View>
           </View>
-        ) : (
-          <Button
-            variant="ghost"
-            textClassName="text-danger dark:text-danger-dark"
-            disabled={saving}
-            onPress={() => setConfirmingDiscard(true)}
-          >
-            {draft?.editingWorkoutId ? 'Discard changes & exit' : 'Discard workout & exit'}
-          </Button>
-        )}
+        ) : null}
       </View>
     </Screen>
   );
