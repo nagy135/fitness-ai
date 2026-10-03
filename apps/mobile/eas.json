@@ -14,7 +14,8 @@
       "node": "22.23.2",
       "pnpm": "11.22.0",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "autoIncrement": "versionCode"
       }
     }
   }

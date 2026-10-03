@@ -12,6 +12,7 @@ import {
   RecentWorkoutsSchema,
   ReorderExercisesInputSchema,
   SearchExercisesInputSchema,
+  SearchWorkoutsSchema,
   UpdateExerciseInputSchema,
   UpdateExerciseNotesInputSchema,
   UpdateSetInputSchema,
@@ -39,11 +40,16 @@ export const respond = action({
         return { text: started.request.text!, toolCalls: [] };
       }
       try {
-        const [profile, catalog, draft] = await Promise.all([
+        const [profile, catalog, draft, conversation] = await Promise.all([
           trace.time('load_profile', () => ctx.runQuery(refs.profileCurrent, {})),
           trace.time('load_catalog', () => ctx.runQuery(refs.exercisesList, {})),
           trace.time('load_draft', () => ctx.runQuery(refs.draftCurrent, {})),
+          trace.time('load_conversation', () => ctx.runQuery(refs.workoutContext, args)),
         ]);
+        const messages = [
+          ...conversation,
+          { role: 'user' as const, content: started.request.prompt },
+        ];
         trace.settings(profile.aiSettings);
         // Repeated/parallel identical calls share the committed result. A model
         // retry must not turn a successful addition into an apparent failure.
@@ -51,7 +57,7 @@ export const respond = action({
         const tools = {
           getRecentWorkouts: tool({
             description:
-              'Read recent confirmed workouts only when the latest request refers to past training. Use a small limit.',
+              'Read recent confirmed workouts when the current request refers to past training. Use a small limit.',
             inputSchema: RecentWorkoutsSchema,
             execute: ({ limit }) => ctx.runQuery(refs.workoutsRecent, { limit }),
           }),
@@ -62,16 +68,22 @@ export const respond = action({
             execute: ({ workoutId }) =>
               ctx.runQuery(refs.workoutGet, { workoutId: workoutId as Id<'workouts'> }),
           }),
+          searchWorkouts: tool({
+            description:
+              'Find confirmed workouts by exercise name, workout name, or notes, optionally within a date range. Resolve references from the current conversation. This is read-only.',
+            inputSchema: SearchWorkoutsSchema,
+            execute: (input) => ctx.runQuery(refs.searchWorkouts, input),
+          }),
           getExerciseRecords: tool({
             description:
-              'Read the previous saved session with ALL sets and reps plus all-time maximum measurements for one exercise. Use for "log previous record", "same as last time", or maximum questions. Previous session excludes the workout currently being edited; maximums include all saved workouts. This tool is read-only; copy requested sets with addExercisesToDraft.',
+              'Read the previous saved session with ALL sets and reps plus all-time maximum measurements for one exercise. Use for "what did I log last time on this exercise?", "log previous record", "same as last time", or maximum questions. Resolve "this exercise" from the current conversation and draft. Previous session excludes the workout currently being edited; maximums include all saved workouts. Questions are read-only; copy sets with addExercisesToDraft only when the user explicitly asks to log or repeat them.',
             inputSchema: z.object({ exerciseId: z.string() }).strict(),
             execute: ({ exerciseId }) =>
               ctx.runQuery(refs.exerciseRecords, { exerciseId: exerciseId as Id<'exercises'> }),
           }),
           getExerciseHistory: tool({
             description:
-              'Read saved sessions and sets for the exercise referenced in the latest request. Retrieve only when historical context is needed; narrow the date range when possible.',
+              'Read all saved sessions and sets for one exercise. Resolve the exercise from the current conversation or catalog. Omit the date range for its full history.',
             inputSchema: ExerciseRangeSchema,
             execute: ({ exerciseId, ...range }) =>
               ctx.runQuery(refs.exerciseHistory, {
@@ -108,7 +120,7 @@ export const respond = action({
           }),
           addExercisesToDraft: tool({
             description:
-              'Append ONLY newly performed sets from the latest user request, in one ordered batch. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. Do not resend sets already in CURRENT DRAFT. Copy saved historical sets only when the latest request explicitly asks to repeat them. For corrections use updateSet/removeSet. Identical sets are valid when the user explicitly performed another set. Call once after resolving every exercise ID.',
+              'Append ONLY newly performed sets from the current request, including earlier measurements that the latest message clarifies, in one ordered batch. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. Do not resend already handled additions from earlier turns, even if they were later edited or deleted. Copy saved historical sets only when the current request explicitly asks to repeat them. For corrections use updateSet/removeSet. Identical sets are valid when the user explicitly performed another set. Call once after resolving every exercise ID.',
             inputSchema: AddExercisesToDraftInputSchema,
             execute: async ({ exercises }) => {
               const input = JSON.stringify(exercises);
@@ -194,7 +206,8 @@ export const respond = action({
         };
 
         trace.context({
-          messageCount: 1,
+          messageCount: messages.length,
+          conversationChars: JSON.stringify(messages).length,
           promptChars: started.request.prompt.length,
           catalogChars: JSON.stringify(catalog).length,
           draftChars: JSON.stringify(draft).length,
@@ -204,7 +217,7 @@ export const respond = action({
             ...trace.generation('response'),
             model: createUserModel(profile.aiSettings),
             system: `${workoutSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG: ${JSON.stringify(catalog)}\nCURRENT DRAFT: ${JSON.stringify(draft)}`,
-            prompt: started.request.prompt,
+            messages,
             tools,
             stopWhen: stepCountIs(8),
           }),

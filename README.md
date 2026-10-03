@@ -213,6 +213,9 @@ ANDROID_HOME="$HOME/Library/Android/sdk" nix develop -c sh -c \
 ```
 
 This only builds an APK. It does not deploy backend changes or install the app.
+Android builds automatically increment `expo.android.versionCode` in
+`apps/mobile/app.json`. Preserve that updated value for subsequent builds so
+each APK has a higher build number and can upgrade an existing installation.
 If a feature adds backend functions or schema fields, deploy those separately
 before using that feature against a running backend.
 
@@ -305,13 +308,20 @@ action startup; `--success` also shows Convex's function durations, including th
 client's preparation mutations. Logs are operational diagnostics, not a persistent
 analytics table; capture the stream during a test if you need to keep the results.
 
-Workout logging uses only the latest user message together with the fresh current
-draft and defined exercise catalog; saved workouts and exercise histories are
-retrieved through read-only tools when needed. Analysis includes the entire selected
-session in chronological order, including user messages, assistant answers, and
-saved charts, so follow-ups and clarification answers retain their context. New
-analysis sessions start with no previous conversation. Training facts are still
-retrieved fresh through read-only tools; earlier answers are not authoritative state.
+Workout logging includes the entire conversation for the selected draft in
+chronological order, recovered from saved request records, plus the fresh current
+draft with all currently logged exercises and sets, and the exercise catalog.
+Clarification answers retain earlier reps, weights, and exercise names. Saved
+workouts and exercise history are retrieved on demand through read-only tools.
+Questions such as “What did I log last time on this exercise?” use the previous
+record tool to report the session date and every set; copying those sets requires
+an explicit logging request. New workouts start with no previous conversation;
+history editing uses its own draft conversation and preserves the ordinary draft's
+conversation. Analysis includes its entire selected session, including user messages,
+assistant answers, and saved charts, and retrieves training facts through tools.
+New analysis sessions start with no previous conversation. Earlier messages and
+answers are not authoritative current training state. Deploy the updated Convex
+schema and functions to enable this context behavior for existing mobile builds.
 
 Analysis sessions save automatically to your account, including prompts, answers,
 and charts. In Analysis mode, use the history icon to reopen or rename a session,

@@ -132,7 +132,9 @@ export default defineSchema({
     expiresAt: v.number(),
     text: v.optional(v.string()),
     createdAt: v.number(),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_draft', ['userId', 'draftId']),
 
   analysisSessions: defineTable({
     userId: v.id('userProfiles'),

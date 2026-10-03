@@ -184,6 +184,30 @@ export const recent = query({
   },
 });
 
+// Receipts already link every workout exchange to its draft, including exchanges
+// saved before conversation context was enabled. UI history limits do not apply.
+export const workoutContext = query({
+  args: { requestId: v.id('workoutRequests') },
+  handler: async (ctx, { requestId }) => {
+    const user = await requireUserProfile(ctx);
+    const request = await ctx.db.get(requestId);
+    if (!request || request.userId !== user._id) throw new Error('Request not found');
+    const requests = await ctx.db
+      .query('workoutRequests')
+      .withIndex('by_user_draft', (q) => q.eq('userId', user._id).eq('draftId', request.draftId))
+      .order('asc')
+      .collect();
+    // The action appends the current prompt exactly once. Unsent queued requests
+    // are not conversation turns; acknowledged and failed exchanges still are.
+    return requests
+      .filter((item) => item._id !== requestId && item.status !== 'queued')
+      .flatMap((item) => [
+        { role: 'user' as const, content: item.prompt },
+        ...(item.text === undefined ? [] : [{ role: 'assistant' as const, content: item.text }]),
+      ]);
+  },
+});
+
 // Reuse an unacknowledged submission even after an app restart or lost response.
 // Acknowledging the outcome allows a later, intentional identical prompt.
 export const prepareWorkoutRequest = mutation({

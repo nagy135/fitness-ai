@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getFunctionName } from 'convex/server';
 import { generateText } from 'ai';
-import { createFitnessModel } from '@fitness/ai';
+import { createFitnessModel, workoutToolNames } from '@fitness/ai';
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { respond } from './workout';
@@ -25,7 +25,18 @@ const run = (
 )._handler;
 const requestId = 'request-1' as Id<'workoutRequests'>;
 const prompt = 'Change the last one to twelve reps';
-const draft = { exercises: [{ rowId: 'row-1', sets: [{ setId: 'set-1', reps: 10 }] }] };
+const draft = {
+  exercises: [
+    {
+      rowId: 'row-1',
+      exerciseId: 'exercise-1',
+      name: 'Push-ups',
+      sets: [{ setId: 'set-1', reps: 10 }],
+    },
+  ],
+};
+let currentDraft: typeof draft;
+let conversation: { role: 'user' | 'assistant'; content: string }[];
 let ctx: ActionCtx;
 const mutate = vi.fn();
 type TestTools = Record<string, { execute: (input: unknown) => Promise<unknown> }>;
@@ -35,6 +46,8 @@ function generatedTools(options: unknown): TestTools {
 const additions = { exercises: [{ exerciseId: 'exercise-1', sets: [{ reps: 10 }] }] };
 beforeEach(() => {
   vi.clearAllMocks();
+  conversation = [];
+  currentDraft = structuredClone(draft);
   vi.stubEnv('OPENROUTER_API_KEY', 'test-key');
   mutate.mockImplementation(async (ref) =>
     getFunctionName(ref) === 'aiMessages:beginWorkoutRequest'
@@ -43,23 +56,32 @@ beforeEach(() => {
   );
   ctx = {
     runMutation: mutate,
-    runQuery: async (ref: Parameters<typeof getFunctionName>[0]) => {
+    runQuery: vi.fn(async (ref: Parameters<typeof getFunctionName>[0]) => {
       switch (getFunctionName(ref)) {
         case 'userProfiles:current':
           return { units: 'metric' };
         case 'exercises:list':
           return [];
         case 'workoutDrafts:current':
-          return draft;
+          return currentDraft;
+        case 'aiMessages:workoutContext':
+          return conversation;
         default:
           throw new Error('Unexpected query');
       }
-    },
+    }),
   } as unknown as ActionCtx;
   vi.mocked(generateText).mockResolvedValue({ text: 'Corrected.', steps: [] } as never);
 });
 
 describe('workout AI request orchestration', () => {
+  it('exposes every declared workout tool, including read-only previous records', async () => {
+    await run(ctx, { requestId });
+    expect(Object.keys(generatedTools(vi.mocked(generateText).mock.calls[0][0])).sort()).toEqual(
+      [...workoutToolNames].sort(),
+    );
+  });
+
   it('uses model preferences from the authenticated profile', async () => {
     const aiSettings = { model: 'openai/gpt-6-astra', reasoningEffort: 'high' };
     const originalQuery = ctx.runQuery;
@@ -77,7 +99,14 @@ describe('workout AI request orchestration', () => {
     const originalQuery = ctx.runQuery;
     ctx.runQuery = ((ref: Parameters<typeof getFunctionName>[0], args: unknown) => {
       const name = getFunctionName(ref);
-      if (['workouts:recent', 'workouts:get', 'analysis:getExerciseHistory'].includes(name))
+      if (
+        [
+          'workouts:recent',
+          'workouts:get',
+          'analysis:searchWorkouts',
+          'analysis:getExerciseHistory',
+        ].includes(name)
+      )
         return query(name, args);
       return originalQuery(ref as never, args as never);
     }) as ActionCtx['runQuery'];
@@ -86,6 +115,13 @@ describe('workout AI request orchestration', () => {
       expect(query).not.toHaveBeenCalled();
       await tools.getRecentWorkouts.execute({ limit: 3 });
       await tools.getWorkout.execute({ workoutId: 'workout-1' });
+      await tools.searchWorkouts.execute({
+        query: 'Push-ups',
+        from: '2026-01-01',
+        to: '2026-01-31',
+        limit: 5,
+      });
+      await tools.getExerciseHistory.execute({ exerciseId: 'exercise-1' });
       await tools.getExerciseHistory.execute({ exerciseId: 'exercise-1', from: '2026-09-01' });
       return { text: 'Found saved training.', steps: [] } as never;
     });
@@ -93,6 +129,11 @@ describe('workout AI request orchestration', () => {
     expect(query.mock.calls).toEqual([
       ['workouts:recent', { limit: 3 }],
       ['workouts:get', { workoutId: 'workout-1' }],
+      [
+        'analysis:searchWorkouts',
+        { query: 'Push-ups', from: '2026-01-01', to: '2026-01-31', limit: 5 },
+      ],
+      ['analysis:getExerciseHistory', { exerciseId: 'exercise-1' }],
       ['analysis:getExerciseHistory', { exerciseId: 'exercise-1', from: '2026-09-01' }],
     ]);
   });
@@ -186,15 +227,91 @@ describe('workout AI request orchestration', () => {
     expect(attempts).toBe(2);
   });
 
-  it('uses only the persisted latest request and fresh draft, with no conversation query', async () => {
+  it('sends the full conversation and latest prompt with the fresh draft', async () => {
+    conversation = [
+      { role: 'user', content: 'Log two sets of ten push-ups' },
+      { role: 'assistant', content: 'Added two sets.' },
+    ];
     await run(ctx, { requestId });
-    expect(generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt,
-        system: expect.stringContaining(JSON.stringify(draft)),
-      }),
-    );
-    expect(vi.mocked(generateText).mock.calls[0][0]).not.toHaveProperty('messages');
+    const options = vi.mocked(generateText).mock.calls[0][0];
+    expect(options.messages).toEqual([...conversation, { role: 'user', content: prompt }]);
+    expect(options.system).toContain(JSON.stringify(draft));
+    expect(options).not.toHaveProperty('prompt');
+    expect(ctx.runQuery).toHaveBeenCalledWith(expect.anything(), { requestId });
+    expect(vi.mocked(ctx.runQuery).mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+      'userProfiles:current',
+      'exercises:list',
+      'workoutDrafts:current',
+      'aiMessages:workoutContext',
+    ]);
+  });
+
+  it.each([
+    ['10 reps', 'Which exercise?', 'Push-ups'],
+    ['Log push-ups', 'How many reps?', '10 reps'],
+    ['Repeat the previous record', 'Which exercise?', 'Push-ups'],
+  ])(
+    'retains the pending exchange %s / %s when the user answers %s',
+    async (first, question, answer) => {
+      conversation = [
+        { role: 'user', content: first },
+        { role: 'assistant', content: question },
+      ];
+      mutate.mockImplementation(async (ref) =>
+        getFunctionName(ref) === 'aiMessages:beginWorkoutRequest'
+          ? { execute: true, request: { prompt: answer } }
+          : null,
+      );
+      await run(ctx, { requestId });
+      expect(vi.mocked(generateText).mock.calls[0][0].messages).toEqual([
+        ...conversation,
+        { role: 'user', content: answer },
+      ]);
+    },
+  );
+
+  it('keeps the full conversation beyond the UI history limit', async () => {
+    conversation = Array.from({ length: 120 }, (_, index) => ({
+      role: index % 2 ? 'assistant' : 'user',
+      content: `Turn ${index}`,
+    }));
+    await run(ctx, { requestId });
+    const options = vi.mocked(generateText).mock.calls[0][0];
+    expect(options.messages).toEqual([...conversation, { role: 'user', content: prompt }]);
+  });
+
+  it('reloads all currently logged exercises and edited sets alongside earlier conversation', async () => {
+    await run(ctx, { requestId });
+    conversation = [
+      { role: 'user', content: 'Log 10 push-ups' },
+      { role: 'assistant', content: 'Added 10 push-ups.' },
+    ];
+    currentDraft = {
+      exercises: [
+        { ...draft.exercises[0], sets: [{ setId: 'set-1', reps: 12 }] },
+        {
+          rowId: 'row-2',
+          exerciseId: 'exercise-2',
+          name: 'Squats',
+          sets: [
+            { setId: 'set-2', reps: 15 },
+            { setId: 'set-3', reps: 10 },
+          ],
+        },
+      ],
+    };
+    await run(ctx, { requestId: 'request-2' as Id<'workoutRequests'> });
+    const options = vi.mocked(generateText).mock.calls[1][0];
+    expect(options.system).toContain(`CURRENT DRAFT: ${JSON.stringify(currentDraft)}`);
+    expect(options.messages).toEqual([...conversation, { role: 'user', content: prompt }]);
+  });
+
+  it('does not invoke the model with incomplete conversation context', async () => {
+    ctx.runQuery = vi.fn().mockRejectedValue(new Error('Context could not be loaded'));
+    expect(await run(ctx, { requestId })).toMatchObject({
+      text: expect.stringContaining('did not finish'),
+    });
+    expect(generateText).not.toHaveBeenCalled();
   });
 
   it('returns a persisted result without invoking the model again', async () => {
@@ -214,6 +331,53 @@ describe('workout AI request orchestration', () => {
     ]);
     expect(generateText).toHaveBeenCalledTimes(1);
   });
+});
+
+it('answers a last-time question through the previous-record tool without modifying the draft', async () => {
+  const prompt = 'What did I log last time on this exercise?';
+  conversation = [
+    { role: 'user', content: 'Log 10 push-ups' },
+    { role: 'assistant', content: 'Added 10 push-ups.' },
+  ];
+  const previous = {
+    workoutId: 'saved',
+    performedAt: Date.parse('2026-09-30T08:00:00Z'),
+    sets: [{ reps: 8 }, { reps: 6 }],
+  };
+  const lookup = vi.fn(async () => ({ previous, maximums: [] }));
+  const originalQuery = ctx.runQuery;
+  ctx.runQuery = ((ref: Parameters<typeof getFunctionName>[0], args: unknown) =>
+    getFunctionName(ref) === 'analysis:getExerciseRecords'
+      ? lookup()
+      : originalQuery(ref as never, args as never)) as ActionCtx['runQuery'];
+  mutate.mockImplementation(async (ref) =>
+    getFunctionName(ref) === 'aiMessages:beginWorkoutRequest'
+      ? { execute: true, request: { prompt } }
+      : null,
+  );
+  vi.mocked(generateText).mockImplementation(async (options) => {
+    expect(lookup).not.toHaveBeenCalled();
+    expect(options.messages).toEqual([...conversation, { role: 'user', content: prompt }]);
+    expect(options.system).toContain(`CURRENT DRAFT: ${JSON.stringify(currentDraft)}`);
+    const records = await generatedTools(options).getExerciseRecords.execute({
+      exerciseId: 'exercise-1',
+    });
+    expect(records).toEqual({ previous, maximums: [] });
+    return {
+      text: 'On September 30 you logged 2 push-up sets: 8 reps, then 6 reps.',
+      steps: [],
+    } as never;
+  });
+  const before = structuredClone(currentDraft);
+  expect(await run(ctx, { requestId })).toMatchObject({
+    text: expect.stringContaining('8 reps, then 6 reps'),
+  });
+  expect(lookup).toHaveBeenCalledOnce();
+  expect(currentDraft).toEqual(before);
+  expect(mutate.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+    'aiMessages:beginWorkoutRequest',
+    'aiMessages:finishWorkoutRequest',
+  ]);
 });
 
 it('copies all retrieved previous sets through the fenced draft addition tool', async () => {

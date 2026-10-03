@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { ArrowUp, Mic, Square, X } from 'lucide-react-native';
 import { useAppTheme } from './theme-provider';
 import { useDictation } from '@/features/voice/use-dictation';
@@ -46,6 +46,7 @@ export function PromptBar({
     const text = value.trim();
     if (!text || queueFull || submitting.current || voice.isActive()) return;
     submitting.current = true;
+    Keyboard.dismiss();
     try {
       if (await onSubmit(text)) onChangeText('');
     } finally {

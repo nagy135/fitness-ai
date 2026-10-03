@@ -6,6 +6,7 @@ import {
   acknowledgeWorkoutRequest,
   beginWorkoutRequest,
   recent,
+  workoutContext,
   finishWorkoutRequest,
   prepareWorkoutRequest,
 } from './aiMessages';
@@ -43,6 +44,10 @@ const acknowledge = handler<{ requestId: Id<'workoutRequests'> }, void>(acknowle
 const history = handler<{ mode: 'workout' | 'analysis'; limit?: number }, Doc<'aiMessages'>[]>(
   recent,
 );
+const context = handler<
+  { requestId: Id<'workoutRequests'> },
+  { role: 'user' | 'assistant'; content: string }[]
+>(workoutContext);
 const add = handler<
   {
     exercises: { exerciseId: Id<'exercises'>; sets: { reps: number }[] }[];
@@ -90,7 +95,7 @@ beforeEach(() => {
       get: async (id: string) => rows.find((row) => row._id === id) ?? null,
       insert: async (table: string, value: Record<string, unknown>) => {
         const _id = `${table}-${++serial}`;
-        rows.push({ ...value, _id, table });
+        rows.push({ ...value, _id, _creationTime: serial, table });
         return _id;
       },
       delete: async (id: string) => {
@@ -104,8 +109,10 @@ beforeEach(() => {
       },
       query: (table: string) => {
         let selected = rows.filter((row) => row.table === table);
+        let sortField = 'createdAt';
         const query = {
-          withIndex: (_: string, build: (q: unknown) => unknown) => {
+          withIndex: (name: string, build: (q: unknown) => unknown) => {
+            sortField = name === 'by_user_draft' ? '_creationTime' : 'createdAt';
             const index = {
               eq: (key: string, value: unknown) => {
                 selected = selected.filter((row) => row[key] === value);
@@ -118,7 +125,7 @@ beforeEach(() => {
           order: (direction: string) => {
             selected.sort(
               (a, b) =>
-                (Number(a.createdAt) - Number(b.createdAt)) * (direction === 'asc' ? 1 : -1),
+                (Number(a[sortField]) - Number(b[sortField])) * (direction === 'asc' ? 1 : -1),
             );
             return query;
           },
@@ -319,6 +326,100 @@ describe('durable workout submissions', () => {
   });
 });
 
+describe('workout model conversation context', () => {
+  it('retains measurements and the clarification question across acknowledged requests', async () => {
+    const first = await running('10 reps');
+    await finish(ctx, { requestId: first, text: 'Which exercise?', failed: false });
+    await acknowledge(ctx, { requestId: first });
+    const second = await running('Push-ups');
+    expect(await context(ctx, { requestId: second })).toEqual([
+      { role: 'user', content: '10 reps' },
+      { role: 'assistant', content: 'Which exercise?' },
+    ]);
+    expect((await currentForUser(ctx, userId))!.exercises).toEqual([]);
+  });
+
+  it('keeps every previous turn beyond the UI limit, with stable order for tied timestamps', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    try {
+      const expected = [];
+      for (let index = 0; index < 61; index++) {
+        const requestId = await running(`Prompt ${index}`);
+        await finish(ctx, { requestId, text: `Response ${index}`, failed: index === 10 });
+        await acknowledge(ctx, { requestId });
+        expected.push(
+          { role: 'user', content: `Prompt ${index}` },
+          { role: 'assistant', content: `Response ${index}` },
+        );
+      }
+      const current = await running('Latest prompt');
+      expect(await context(ctx, { requestId: current })).toEqual(expected);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('recovers old request receipts without depending on aiMessages or queued prompts', async () => {
+    rows.push(
+      {
+        _id: 'old',
+        _creationTime: 0,
+        table: 'workoutRequests',
+        userId,
+        draftId,
+        prompt: '10 reps',
+        text: 'Which exercise?',
+        status: 'completed',
+        acknowledged: true,
+      },
+      {
+        _id: 'foreign',
+        _creationTime: 0,
+        table: 'workoutRequests',
+        userId: 'other',
+        draftId,
+        prompt: 'secret',
+        text: 'secret',
+        status: 'completed',
+      },
+      {
+        _id: 'another-draft',
+        _creationTime: 0,
+        table: 'workoutRequests',
+        userId,
+        draftId: 'another',
+        prompt: 'other workout',
+        status: 'completed',
+      },
+    );
+    await prepare(ctx, { prompt: 'Queued for later' });
+    const current = await running('Push-ups');
+    expect(await context(ctx, { requestId: current })).toEqual([
+      { role: 'user', content: '10 reps' },
+      { role: 'assistant', content: 'Which exercise?' },
+    ]);
+  });
+
+  it('starts a fresh conversation after discarding a workout', async () => {
+    const first = await running('10 reps');
+    await finish(ctx, { requestId: first, text: 'Which exercise?', failed: false });
+    await discard(ctx, { draftId });
+    const next = await running('Push-ups');
+    expect(await context(ctx, { requestId: next })).toEqual([]);
+  });
+
+  it('rejects missing and foreign request IDs and unauthenticated access', async () => {
+    await expect(context(ctx, { requestId: 'missing' as Id<'workoutRequests'> })).rejects.toThrow(
+      'Request not found',
+    );
+    const requestId = await running();
+    rows.find((row) => row._id === requestId)!.userId = 'other';
+    await expect(context(ctx, { requestId })).rejects.toThrow('Request not found');
+    vi.mocked(requireUserProfile).mockRejectedValue(new Error('Unauthenticated'));
+    await expect(context(ctx, { requestId })).rejects.toThrow('Unauthenticated');
+  });
+});
+
 describe('conversation drawer history', () => {
   it('keeps a bounded display history with user and mode isolation', async () => {
     for (let i = 60; i >= 0; i--)
@@ -441,6 +542,21 @@ describe('discarding from workout review', () => {
 
 describe('history editing through shared workout tools', () => {
   beforeEach(seedWorkout);
+
+  it('keeps history edit conversations separate and restores the ordinary draft conversation', async () => {
+    const ordinary = await running('10 reps');
+    await finish(ctx, { requestId: ordinary, text: 'Which exercise?', failed: false });
+    const editingId = await editHistory(ctx, { workoutId: savedId });
+    const editing = await running('Change the last set');
+    expect(await context(ctx, { requestId: editing })).toEqual([]);
+    await finish(ctx, { requestId: editing, text: 'How many reps?', failed: false });
+    await cancelHistory(ctx, { draftId: editingId });
+    const resumed = await running('Push-ups');
+    expect(await context(ctx, { requestId: resumed })).toEqual([
+      { role: 'user', content: '10 reps' },
+      { role: 'assistant', content: 'Which exercise?' },
+    ]);
+  });
 
   it('changes the date only on confirmation, preserving the ordinary draft and workout contents', async () => {
     const ordinary = structuredClone(rows[0]);

@@ -5,6 +5,7 @@ import { PromptBar } from './prompt-bar';
 
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
+  Keyboard: { dismiss: vi.fn() },
   Pressable: 'Pressable',
   Text: 'Text',
   TextInput: 'TextInput',

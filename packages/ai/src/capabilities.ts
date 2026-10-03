@@ -2,6 +2,8 @@ export const workoutToolNames = [
   'getCurrentDraft',
   'getRecentWorkouts',
   'getWorkout',
+  'searchWorkouts',
+  'getExerciseRecords',
   'getExerciseHistory',
   'searchUserExercises',
   'createUserExercise',

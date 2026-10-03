@@ -25,7 +25,7 @@ const run = (
 )._handler;
 const catalog = [{ _id: 'exercise-1', name: 'Squat' }];
 let history: { role: 'user' | 'assistant'; content: string }[] = [];
-const runQuery = vi.fn(async (ref: Parameters<typeof getFunctionName>[0]) => {
+const queryResult = async (ref: Parameters<typeof getFunctionName>[0]): Promise<unknown> => {
   switch (getFunctionName(ref)) {
     case 'userProfiles:current':
       return { units: 'metric' };
@@ -36,12 +36,14 @@ const runQuery = vi.fn(async (ref: Parameters<typeof getFunctionName>[0]) => {
     default:
       throw new Error('Unexpected query');
   }
-});
+};
+const runQuery = vi.fn(queryResult);
 const runMutation = vi.fn();
 const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runQuery.mockImplementation(queryResult);
   history = [];
   vi.stubEnv('OPENROUTER_API_KEY', 'test-key');
   runMutation.mockResolvedValue('session-1');
@@ -77,6 +79,11 @@ describe('analysis model context', () => {
     expect(options).not.toHaveProperty('prompt');
     expect(options.tools).toHaveProperty('getExerciseHistory');
     expect(options.tools).toHaveProperty('getRecentWorkouts');
+    expect(runQuery.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+      'userProfiles:current',
+      'exercises:list',
+      'aiMessages:analysisContext',
+    ]);
     expect(runMutation.mock.calls.map(([, args]) => args)).toEqual([
       { title: 'How is my squat progressing?' },
       {
@@ -118,6 +125,29 @@ describe('analysis model context', () => {
       ...history,
       { role: 'user', content: 'Plot my squat reps' },
       { role: 'user', content: `RETRIEVED DATA: ${JSON.stringify(retrieved)}` },
+    ]);
+  });
+
+  it('retrieves saved exercise history only when the model calls its read-only tool', async () => {
+    const records = [{ workoutId: 'previous', sets: [{ weightKg: 80, reps: 8 }] }];
+    const lookup = vi.fn(async () => records);
+    runQuery.mockImplementation(async (ref) =>
+      getFunctionName(ref) === 'analysis:getExerciseHistory' ? lookup() : queryResult(ref),
+    );
+    vi.mocked(generateText).mockImplementation(async (options) => {
+      expect(lookup).not.toHaveBeenCalled();
+      const tools = options.tools as unknown as {
+        getExerciseHistory: { execute: (input: { exerciseId: string }) => Promise<unknown> };
+      };
+      expect(await tools.getExerciseHistory.execute({ exerciseId: 'exercise-1' })).toEqual(records);
+      return { text: 'You logged 8 reps at 80 kg.', steps: [] } as never;
+    });
+    await run(ctx, { prompt: 'What did I log for squat?' });
+    expect(lookup).toHaveBeenCalledOnce();
+    expect(runMutation.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+      'aiMessages:createAnalysisSession',
+      'aiMessages:append',
+      'aiMessages:append',
     ]);
   });
 });

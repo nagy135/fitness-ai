@@ -16,6 +16,8 @@ describe('AI capability boundary', () => {
     expect(workoutToolNames).toContain('getCurrentDraft');
     expect(workoutToolNames).toContain('getRecentWorkouts');
     expect(workoutToolNames).toContain('getExerciseHistory');
+    expect(workoutToolNames).toContain('getExerciseRecords');
+    expect(workoutToolNames).toContain('searchWorkouts');
     expect([...workoutToolNames, ...analysisToolNames]).not.toContain('executeConvexQuery');
     expect(capabilityMatrix.workout.modifyConfirmedHistory).toBe(false);
     expect(capabilityMatrix.analysis.modifyCurrentDraft).toBe(false);

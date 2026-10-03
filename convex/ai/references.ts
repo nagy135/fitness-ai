@@ -110,6 +110,11 @@ export const refs = {
     { sessionId: Id<'analysisSessions'> },
     { role: 'user' | 'assistant'; content: string }[]
   >('aiMessages:analysisContext'),
+  workoutContext: makeFunctionReference<
+    'query',
+    { requestId: Id<'workoutRequests'> },
+    { role: 'user' | 'assistant'; content: string }[]
+  >('aiMessages:workoutContext'),
   analysisSessionCreate: makeFunctionReference<
     'mutation',
     { title: string },
