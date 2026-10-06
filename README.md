@@ -277,10 +277,15 @@ configured endpoint uses `http://`.
 
 The current nixpi deployment uses `https://fitness-ai.infiniter.tech` for the
 API and `https://fitness-ai-auth.infiniter.tech` for auth. Both are configured
-in EAS. To deploy backend changes, use the ignored `.env.production.local`:
+in EAS. The production checkout on nixpi is `~/services/fitness-ai`. To update
+and deploy backend changes, run these commands on nixpi using the ignored
+`.env.production.local` stored in that checkout:
 
 ```bash
-CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh deploy
+cd ~/services/fitness-ai
+git pull --ff-only origin main
+nix develop -c pnpm --store-dir .pnpm-home/store --filter @fitness/convex... --filter fitness-ai install --frozen-lockfile
+CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh deploy --yes
 ```
 
 This deployment has its own data; it does not contain the Mac's development
