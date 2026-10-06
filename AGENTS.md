@@ -38,6 +38,8 @@ Backend development requires the Docker services and the Convex watcher. Setup, 
 ## Existing production deployment
 
 - Production already runs on **nixpi**, reached from the Mac with `ssh infiniter@nixpi.tail6650cb.ts.net`. The Docker container is `fitness-ai-convex`; the persisted volume is `fitness-ai-convex-data`.
+- NixOS manages the production Docker containers through `virtualisation.oci-containers`, defined in `/etc/nixos/modules/services/fitness-ai.nix` (Mac source: `~/Code/nix-server/modules/services/fitness-ai.nix`). The systemd units are `docker-fitness-ai-convex.service` and `docker-fitness-ai-dashboard.service`. `infra/docker-compose.yml` is for local development.
+- Nginx serves HTTPS and proxies the API to `127.0.0.1:13210`, auth/HTTP actions to `127.0.0.1:13211`, and the dashboard to `127.0.0.1:16791`. Deploying functions from the source checkout updates the running Convex backend while preserving its Docker data volume.
 - The production source and deployment checkout is **`/home/infiniter/services/fitness-ai`** (`~/services/fitness-ai` as `infiniter`), on `main`, with origin `git@github.com:nagy135/fitness-ai.git`. Pull and deploy from this directory. `/home/infiniter/services/fitness-tracker` is a completely separate project.
 - Production API: `https://fitness-ai.infiniter.tech`; auth/site: `https://fitness-ai-auth.infiniter.tech`; dashboard: `https://fitness-ai-dashboard.infiniter.tech`.
 - Check the production checkout's working tree and verify the intended pushed commit from `origin/main` before deploying.

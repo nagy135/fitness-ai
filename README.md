@@ -288,6 +288,14 @@ nix develop -c pnpm --store-dir .pnpm-home/store --filter @fitness/convex... --f
 CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hosted.sh deploy --yes
 ```
 
+Production runs in NixOS-managed Docker containers defined in
+`/etc/nixos/modules/services/fitness-ai.nix` on nixpi (source:
+`~/Code/nix-server/modules/services/fitness-ai.nix` on the Mac). Systemd runs
+`docker-fitness-ai-convex.service` and `docker-fitness-ai-dashboard.service`.
+Nginx provides HTTPS and proxies the API, auth, and dashboard to localhost ports
+13210, 13211, and 16791. The database persists in the `fitness-ai-convex-data`
+Docker volume. The repository's `infra/docker-compose.yml` is for local development.
+
 This deployment has its own data; it does not contain the Mac's development
 accounts or workout history. Infrastructure is managed in `~/Code/nix-server`.
 
