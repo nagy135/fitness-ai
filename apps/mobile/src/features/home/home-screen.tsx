@@ -8,6 +8,7 @@ import { PromptBar } from '@/components/prompt-bar';
 import { ConversationDrawer } from '@/components/conversation-drawer';
 import { AnalysisConversationDrawer } from '@/components/analysis-conversation-drawer';
 import { AnalysisMarkdown } from '@/components/analysis-markdown';
+import { ToolCallPills } from '@/components/tool-call-pills';
 import { AnalysisHistoryDrawer } from '@/components/analysis-history-drawer';
 import { useAppTheme } from '@/components/theme-provider';
 import { WorkoutTable } from '@/features/workout/workout-table';
@@ -34,9 +35,9 @@ export default function HomeScreen() {
   const session = useWorkoutSession(mode, conversationOpen, historyOpen);
   const queue = usePromptQueue(
     session.submitPrompt,
-    session.busy || (mode === 'analysis' && session.analysisLoading),
+    session.busy || session.savingSets || (mode === 'analysis' && session.analysisLoading),
   );
-  const busy = session.busy || queue.hasWork;
+  const busy = session.busy || session.savingSets || queue.hasWork;
   const setPrompt = (value: string) => setPrompts((previous) => ({ ...previous, [mode]: value }));
   function newAnalysis() {
     if (busy) return;
@@ -140,12 +141,13 @@ export default function HomeScreen() {
       </View>
       {mode === 'workout' ? (
         <WorkoutTable
-          key={session.draft?._id}
+          key={`table-${session.draft?._id}`}
           exercises={exercises}
-          busy={busy}
+          busy={session.busy || queue.hasWork}
+          savingSets={session.savingSets}
           onRemoveSet={session.removeSet}
           onRemoveExercise={session.removeExercise}
-          onUpdateSet={session.updateSet}
+          onAdjustSet={session.adjustSet}
           onExample={setPrompt}
         />
       ) : (
@@ -177,13 +179,17 @@ export default function HomeScreen() {
               ) : null}
               <AnalysisMarkdown text={session.response.text} />
               {session.response.chart ? <ProgressChart chart={session.response.chart} /> : null}
+              <ToolCallPills
+                key={session.response._id ?? session.response.text}
+                calls={session.response.toolCalls}
+              />
             </View>
           ) : null}
         </ScrollView>
       )}
       {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
         <WorkoutReviewBar
-          key={session.draft?._id}
+          key={`review-${session.draft?._id}`}
           response={session.workoutExchange}
           busy={busy}
           hasSets={setCount > 0}

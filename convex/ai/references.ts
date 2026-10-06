@@ -1,5 +1,5 @@
 import { makeFunctionReference } from 'convex/server';
-import type { AnalysisChart } from '@fitness/ai';
+import type { AnalysisChart, ToolCallRecord } from '@fitness/ai';
 import type { Doc, Id } from '../_generated/dataModel';
 
 type Empty = Record<string, never>;
@@ -101,6 +101,7 @@ export const refs = {
       role: 'user' | 'assistant';
       text: string;
       chart?: AnalysisChart;
+      toolCalls?: ToolCallRecord[];
       sessionId?: Id<'analysisSessions'>;
     },
     Id<'aiMessages'>

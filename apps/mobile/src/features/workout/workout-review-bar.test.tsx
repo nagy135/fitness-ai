@@ -5,6 +5,7 @@ import { WorkoutReviewBar } from './workout-review-bar';
 import type { WorkoutExchange } from './latest-workout-exchange';
 vi.mock('react-native', () => ({ ScrollView: 'ScrollView', Text: 'Text', View: 'View' }));
 vi.mock('@fitness/ui', () => ({ Button: 'Button' }));
+vi.mock('@/components/tool-call-pills', () => ({ ToolCallPills: 'ToolCallPills' }));
 let renderer: ReactTestRenderer;
 const props = { busy: false, hasSets: true, editing: false, onReview: vi.fn() };
 const toggle = () => renderer.root.findByProps({ accessibilityLabel: 'Show reply history' });
@@ -24,24 +25,25 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-it('shows each new response for two seconds and keeps the toggle state in sync', async () => {
+it('keeps the latest response open until manually closed, including unchanged refreshes', async () => {
   expect(() => toggle()).toThrow();
   const response = { id: 'reply-1', prompt: 'Add bench press', text: 'Added a set' };
   await render(response);
   expect(shown()).toBe(true);
   await act(() => {
-    vi.advanceTimersByTime(1999);
+    vi.advanceTimersByTime(60_000);
   });
   expect(shown()).toBe(true);
-  await render(response);
-  await act(() => {
-    vi.advanceTimersByTime(1);
-  });
+  await render({ ...response });
+  expect(shown()).toBe(true);
+  await act(() => toggle().props.onPress());
+  expect(shown()).toBe(false);
+  await render({ ...response });
   expect(shown()).toBe(false);
   await render({ id: 'reply-2', prompt: 'Add another', text: 'Added a set' });
   expect(shown()).toBe(true);
 });
-it('allows manually showing or hiding history without the old timer overriding it', async () => {
+it('allows manually showing or hiding history without overriding that choice', async () => {
   await render({ id: 'reply-1', prompt: 'Update bench', text: 'Updated' });
   await act(() => toggle().props.onPress());
   expect(shown()).toBe(false);
@@ -53,20 +55,16 @@ it('allows manually showing or hiding history without the old timer overriding i
   await act(() => toggle().props.onPress());
   expect(shown()).toBe(false);
 });
-it('restarts the two-second window on another reply', async () => {
+it('opens a new reply after closing the previous one and replaces the previous exchange', async () => {
   await render({ id: 'reply-1', prompt: 'First prompt', text: 'First' });
-  await act(() => {
-    vi.advanceTimersByTime(1500);
-  });
-  await render({ id: 'reply-2', prompt: 'Second prompt', text: 'Second' });
-  await act(() => {
-    vi.advanceTimersByTime(1000);
-  });
-  expect(shown()).toBe(true);
-  await act(() => {
-    vi.advanceTimersByTime(1000);
-  });
+  await act(() => toggle().props.onPress());
   expect(shown()).toBe(false);
+  await render({ id: 'reply-2', prompt: 'Second prompt', text: 'Second' });
+  expect(shown()).toBe(true);
+  expect(renderer.root.findAllByProps({ children: 'First prompt' })).toHaveLength(0);
+  expect(renderer.root.findAllByProps({ children: 'First' })).toHaveLength(0);
+  expect(renderer.root.findByProps({ children: 'Second prompt' })).toBeDefined();
+  expect(renderer.root.findByProps({ children: 'Second' })).toBeDefined();
 });
 
 it('uses compact heights and shows the matching prompt and reply together', async () => {
@@ -77,10 +75,29 @@ it('uses compact heights and shows the matching prompt and reply together', asyn
   expect(renderer.root.findByType('ScrollView' as never).props.style.maxHeight).toBe(120);
   expect(renderer.root.findByProps({ children: response.prompt })).toBeDefined();
   expect(renderer.root.findByProps({ children: response.text })).toBeDefined();
-  await act(() => {
-    vi.advanceTimersByTime(2000);
-  });
+  await act(() => toggle().props.onPress());
   await render({ ...response });
   expect(shown()).toBe(false);
   expect(toggle().props.disabled).toBe(false);
+});
+
+it('passes the latest reply tools into persistent history', async () => {
+  const toolCalls = [
+    { toolCallId: 'call-1', toolName: 'updateSet', input: '{"reps":12}', output: 'null' },
+  ];
+  await render({ id: 'reply', prompt: 'Twelve reps', text: 'Updated', toolCalls });
+  const pills = renderer.root.findByType('ToolCallPills' as never);
+  expect(pills.props.calls).toEqual(toolCalls);
+  await act(() => {
+    vi.advanceTimersByTime(3000);
+  });
+  expect(shown()).toBe(true);
+});
+
+it('removes history when the exchange is cleared', async () => {
+  await render({ id: 'reply', prompt: 'Add bench press', text: 'Added a set' });
+  expect(shown()).toBe(true);
+  await render();
+  expect(() => toggle()).toThrow();
+  expect(renderer.root.findAllByType('ScrollView' as never)).toHaveLength(0);
 });

@@ -1,5 +1,5 @@
 import { ConvexError, v } from 'convex/values';
-import { normalizeSetForTrackingType } from '@fitness/domain';
+import { adjustSetMeasurement, normalizeSetForTrackingType } from '@fitness/domain';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -312,6 +312,50 @@ export const updateSet = mutation({
       setId: args.setId,
     });
     await ctx.db.patch(draft._id, { exercises, updatedAt: Date.now() });
+  },
+});
+
+export const adjustSet = mutation({
+  args: {
+    draftId: v.id('workoutDrafts'),
+    rowId: v.string(),
+    setId: v.string(),
+    field: v.union(
+      v.literal('weightKg'),
+      v.literal('reps'),
+      v.literal('durationSeconds'),
+      v.literal('distanceMeters'),
+    ),
+    delta: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const draft = await requireCurrent(ctx, user._id, { source: 'user_ui' });
+    if (draft._id !== args.draftId) throw new ConvexError('Workout draft is no longer selected');
+    const row = draft.exercises.find((row) => row.rowId === args.rowId);
+    const set = row?.sets.find((set) => set.setId === args.setId);
+    if (!row || !set) throw new ConvexError('Draft set not found');
+    const value = adjustSetMeasurement(set, args.field, args.delta);
+    if (value === undefined)
+      throw new ConvexError('Adjustment must keep a tracked value positive with whole repetitions');
+    const exercise = row.exerciseId ? await ctx.db.get(row.exerciseId) : null;
+    const patched = { ...set, [args.field]: value };
+    const next = exercise
+      ? { setId: set.setId, ...normalizeSetForTrackingType(patched, exercise.trackingType) }
+      : patched;
+    validateTrackedSet(next);
+    await recordEvent(ctx, draft, 'update_set', 'user_ui', {
+      rowId: args.rowId,
+      setId: args.setId,
+    });
+    await ctx.db.patch(draft._id, {
+      exercises: draft.exercises.map((item) =>
+        item.rowId === args.rowId
+          ? { ...item, sets: item.sets.map((item) => (item.setId === args.setId ? next : item)) }
+          : item,
+      ),
+      updatedAt: Date.now(),
+    });
   },
 });
 

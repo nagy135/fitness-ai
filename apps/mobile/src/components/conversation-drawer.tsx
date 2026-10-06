@@ -2,17 +2,19 @@ import { useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { MessageSquareText } from 'lucide-react-native';
 import { Button, type FitnessMode } from '@fitness/ui';
-import type { AnalysisChart } from '@fitness/ai';
+import type { AnalysisChart, ToolCallRecord } from '@fitness/ai';
 import { useAppTheme } from './theme-provider';
 import { ProgressChart } from './progress-chart';
 import { Drawer } from './drawer';
 import { AnalysisMarkdown } from './analysis-markdown';
+import { ToolCallPills } from './tool-call-pills';
 
 type ConversationMessage = {
   _id: string;
   role: 'user' | 'assistant';
   text: string;
   chart?: AnalysisChart;
+  toolCalls?: ToolCallRecord[];
   createdAt: number;
 };
 
@@ -57,6 +59,7 @@ export function ConversationDrawer({
             }
           }}
           ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {onLoadOlder || loadingOlder ? (
@@ -91,6 +94,7 @@ export function ConversationDrawer({
                   {!fromUser && message.chart ? (
                     <ProgressChart chart={message.chart} compact />
                   ) : null}
+                  {!fromUser ? <ToolCallPills calls={message.toolCalls} /> : null}
                 </View>
                 <Text className="mt-1 px-1 text-[11px] text-muted dark:text-muted-dark">
                   {new Date(message.createdAt).toLocaleString([], {

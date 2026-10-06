@@ -5,6 +5,7 @@ import type { Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
 import { requireUserProfile } from './lib/auth';
+import { toolCallValidator } from './model';
 
 const mode = v.union(v.literal('workout'), v.literal('analysis'));
 const role = v.union(v.literal('user'), v.literal('assistant'));
@@ -159,6 +160,7 @@ export const append = mutation({
     role,
     text: v.string(),
     chart: v.optional(chart),
+    toolCalls: v.optional(v.array(toolCallValidator)),
     sessionId: v.optional(sessionId),
   },
   handler: async (ctx, args) => {
@@ -298,19 +300,25 @@ export const beginWorkoutRequest = internalMutation({
 });
 
 export const finishWorkoutRequest = internalMutation({
-  args: { requestId: v.id('workoutRequests'), text: v.string(), failed: v.boolean() },
-  handler: async (ctx, { requestId, text, failed }) => {
+  args: {
+    requestId: v.id('workoutRequests'),
+    text: v.string(),
+    failed: v.boolean(),
+    toolCalls: v.optional(v.array(toolCallValidator)),
+  },
+  handler: async (ctx, { requestId, text, failed, toolCalls }) => {
     const user = await requireUserProfile(ctx);
     const request = await ctx.db.get(requestId);
     if (!request || request.userId !== user._id) throw new Error('Request not found');
     if (request.status !== 'running' || request.expiresAt <= Date.now())
       throw new Error('Request is no longer running');
-    await ctx.db.patch(requestId, { status: failed ? 'failed' : 'completed', text });
+    await ctx.db.patch(requestId, { status: failed ? 'failed' : 'completed', text, toolCalls });
     await ctx.db.insert('aiMessages', {
       userId: user._id,
       mode: 'workout',
       role: 'assistant',
       text,
+      ...(toolCalls ? { toolCalls } : {}),
       createdAt: Date.now(),
     });
   },

@@ -47,12 +47,14 @@ const props = {
   busy: false,
   onRemoveSet: vi.fn(),
   onRemoveExercise: vi.fn(),
-  onUpdateSet: vi.fn(),
+  onAdjustSet: vi.fn(),
   onExample: vi.fn(),
 };
-async function update(next: Exercises) {
+async function update(next: Exercises, savingSets = false) {
   exercises = next;
-  await act(() => renderer.update(createElement(WorkoutTable, { ...props, exercises })));
+  await act(() =>
+    renderer.update(createElement(WorkoutTable, { ...props, exercises, savingSets })),
+  );
 }
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -186,4 +188,53 @@ it('pulses only added or changed sets, without replaying on manual reopening', a
     ),
   );
   expect(motion.start).toHaveBeenCalledTimes(4);
+});
+
+it('accepts five rapid increments while saving without pulsing, scrolling or collapsing the controls', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  const setButton = renderer.root.findAll(
+    (node) =>
+      String(node.type) === 'Pressable' &&
+      node.props.accessibilityLabel?.startsWith('Edit Bench set 1'),
+  )[0];
+  await act(() => setButton.props.onPress());
+  await update(exercises, true);
+  motion.start.mockClear();
+  motion.scrollTo.mockClear();
+  const increase = find('Increase Bench set 1 by 1 reps');
+  expect(increase.props.disabled).toBe(false);
+  expect(find('Delete Bench from current workout').props.disabled).toBe(true);
+  await act(() => {
+    for (let tap = 0; tap < 5; tap++) increase.props.onPress();
+  });
+  expect(props.onAdjustSet.mock.calls).toEqual(Array(5).fill(['Bench', 'Bench-1', 'reps', 1]));
+  await update(
+    exercises.map((exercise, index) =>
+      index
+        ? exercise
+        : {
+            ...exercise,
+            sets: exercise.sets.map((set) => ({ ...set, reps: 13 })),
+          },
+    ),
+    true,
+  );
+  expect(find('Increase Bench set 1 by 1 reps').props.disabled).toBe(false);
+  expect(motion.start).not.toHaveBeenCalled();
+  expect(motion.scrollTo).not.toHaveBeenCalled();
+  await update(structuredClone(exercises));
+  expect(find('Increase Bench set 1 by 1 reps').props.disabled).toBe(false);
+  expect(motion.start).not.toHaveBeenCalled();
+  // Later AI updates still reveal and pulse the changed set.
+  await update(
+    exercises.map((exercise, index) =>
+      index
+        ? exercise
+        : {
+            ...exercise,
+            sets: exercise.sets.map((set) => ({ ...set, reps: 15 })),
+          },
+    ),
+  );
+  expect(motion.start).toHaveBeenCalledTimes(2);
 });

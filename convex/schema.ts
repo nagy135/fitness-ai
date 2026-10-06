@@ -8,6 +8,7 @@ import {
   eventSourceValidator,
   setFields,
   trackingTypeValidator,
+  toolCallValidator,
 } from './model';
 
 const legacyAnalysisChartValidator = v.object({
@@ -131,6 +132,7 @@ export default defineSchema({
     addedRowIds: v.optional(v.array(v.string())),
     expiresAt: v.number(),
     text: v.optional(v.string()),
+    toolCalls: v.optional(v.array(toolCallValidator)),
     createdAt: v.number(),
   })
     .index('by_user', ['userId'])
@@ -149,6 +151,7 @@ export default defineSchema({
     role: v.union(v.literal('user'), v.literal('assistant')),
     text: v.string(),
     chart: v.optional(analysisChartValidator),
+    toolCalls: v.optional(v.array(toolCallValidator)),
     sessionId: v.optional(v.id('analysisSessions')),
     createdAt: v.number(),
   })

@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@fitness/convex/api';
 import type { FitnessMode } from '@fitness/ui';
-import type { AnalysisChart } from '@fitness/ai';
+import type { AnalysisChart, ToolCallRecord } from '@fitness/ai';
 import type { Id } from '@fitness/convex/data-model';
-import type { SetPatch } from '@/features/workout/workout-table';
+import type { SetMeasurementField } from '@fitness/domain';
+import { optimisticSetAdjustment } from '../workout/optimistic-set-adjustment';
 import { latestWorkoutExchange } from '../workout/latest-workout-exchange';
 
 type Response = {
+  _id?: string;
   text: string;
   question?: string;
   chart?: AnalysisChart;
+  toolCalls?: ToolCallRecord[];
   draftId?: string;
   sessionId?: Id<'analysisSessions'>;
 };
@@ -28,6 +31,8 @@ export function useWorkoutSession(
     setErrors((previous) => ({ ...previous, [mode]: message }));
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
+  const pendingAdjustments = useRef(0);
+  const [savingSets, setSavingSets] = useState(false);
   const [responses, setResponses] = useState<Partial<Record<FitnessMode, Response>>>({});
   // undefined restores the latest saved session; null is an unsent new analysis.
   const [selectedAnalysis, setSelectedAnalysis] = useState<Id<'analysisSessions'> | null>();
@@ -48,7 +53,9 @@ export function useWorkoutSession(
   const ensureProfile = useMutation(api.userProfiles.ensureCurrent);
   const getOrCreate = useMutation(api.workoutDrafts.getOrCreate);
   const cancelEdit = useMutation(api.workouts.cancelEdit);
-  const update = useMutation(api.workoutDrafts.updateSet);
+  const adjust = useMutation(api.workoutDrafts.adjustSet).withOptimisticUpdate(
+    optimisticSetAdjustment,
+  );
   const remove = useMutation(api.workoutDrafts.removeSet);
   const removeExercise = useMutation(api.workoutDrafts.removeExercise);
   const prepareWorkoutRequest = useMutation(api.aiMessages.prepareWorkoutRequest);
@@ -88,6 +95,7 @@ export function useWorkoutSession(
   async function submitPrompt(prompt: string): Promise<boolean> {
     if (
       locked.current ||
+      pendingAdjustments.current > 0 ||
       (mode === 'analysis' && selectedAnalysis !== null && analysis === undefined)
     )
       return false;
@@ -131,7 +139,7 @@ export function useWorkoutSession(
     }
   }
   async function edit(operation: () => Promise<unknown>) {
-    if (locked.current) return;
+    if (locked.current || pendingAdjustments.current > 0) return;
     locked.current = true;
     setBusy(true);
     setError(undefined);
@@ -144,6 +152,28 @@ export function useWorkoutSession(
       setBusy(false);
     }
   }
+  async function adjustSet(
+    rowId: string,
+    setId: string,
+    field: SetMeasurementField,
+    delta: number,
+  ) {
+    if (locked.current || !draft) return;
+    pendingAdjustments.current += 1;
+    setSavingSets(true);
+    setErrors((previous) => ({ ...previous, workout: undefined }));
+    try {
+      await adjust({ draftId: draft._id, rowId, setId, field, delta });
+    } catch {
+      setErrors((previous) => ({
+        ...previous,
+        workout: 'The change could not be saved. Check your connection and try again.',
+      }));
+    } finally {
+      pendingAdjustments.current -= 1;
+      if (pendingAdjustments.current === 0) setSavingSets(false);
+    }
+  }
   return {
     ready,
     initializationError,
@@ -153,6 +183,7 @@ export function useWorkoutSession(
     },
     error: errors[mode],
     busy,
+    savingSets,
     draft,
     messages,
     workoutExchange: latestWorkoutExchange(messages),
@@ -189,8 +220,7 @@ export function useWorkoutSession(
         await getOrCreate({});
         setResponses((previous) => ({ ...previous, workout: undefined }));
       }),
-    updateSet: (rowId: string, setId: string, patch: SetPatch) =>
-      edit(() => update({ rowId, setId, patch, source: 'user_ui' })),
+    adjustSet,
     removeSet: (rowId: string, setId: string) =>
       edit(() => remove({ rowId, setId, source: 'user_ui' })),
     removeExercise: (rowId: string) => edit(() => removeExercise({ rowId, source: 'user_ui' })),

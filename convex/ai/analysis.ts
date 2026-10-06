@@ -19,6 +19,7 @@ import { action } from '../_generated/server';
 import { refs } from './references';
 import { observeAI } from './telemetry';
 import { createUserModel } from './userModel';
+import { ToolCallRecorder } from './toolCallRecorder';
 
 export const respond = action({
   args: { prompt: v.string(), sessionId: v.optional(v.id('analysisSessions')) },
@@ -141,9 +142,10 @@ export const respond = action({
       };
 
       const system = `${analysisSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG (history is intentionally omitted): ${JSON.stringify(catalog)}`;
+      const toolCalls = new ToolCallRecorder();
       const result = await trace.time('generate_response', () =>
         generateText({
-          ...trace.generation('response'),
+          ...toolCalls.generation(trace.generation('response')),
           model: createUserModel(profile.aiSettings),
           system,
           messages,
@@ -151,7 +153,6 @@ export const respond = action({
           stopWhen: stepCountIs(8),
         }),
       );
-      let chartToolCalls: string[] = [];
       if (graphRequested && !chart) {
         const retrievedData = result.steps.flatMap((step) =>
           step.toolResults
@@ -159,9 +160,9 @@ export const respond = action({
             .map((toolResult) => ({ name: toolResult.toolName, output: toolResult.output })),
         );
         if (retrievedData.length) {
-          const chartResult = await trace.time('generate_chart_correction', () =>
+          await trace.time('generate_chart_correction', () =>
             generateText({
-              ...trace.generation('chart_correction'),
+              ...toolCalls.generation(trace.generation('chart_correction')),
               model: createUserModel(profile.aiSettings),
               system: `${system}\n\nThis is a chart-only correction pass. You MUST call renderChart exactly once. Use only values contained in the user's request or RETRIEVED DATA. Do not invent missing points.`,
               messages: [
@@ -172,9 +173,6 @@ export const respond = action({
               toolChoice: { type: 'tool', toolName: 'renderChart' },
               stopWhen: stepCountIs(1),
             }),
-          );
-          chartToolCalls = chartResult.steps.flatMap((step) =>
-            step.toolCalls.map((call) => call.toolName),
           );
         }
       }
@@ -198,16 +196,14 @@ export const respond = action({
           sessionId,
           text,
           ...(chart ? { chart } : {}),
+          toolCalls: toolCalls.calls,
         }),
       );
       return {
         sessionId,
         text,
         ...(chart ? { chart } : {}),
-        toolCalls: [
-          ...result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName)),
-          ...chartToolCalls,
-        ],
+        toolCalls: toolCalls.calls,
       };
     }),
 });

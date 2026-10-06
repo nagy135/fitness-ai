@@ -92,7 +92,13 @@ describe('analysis model context', () => {
         text: 'How is my squat progressing?',
         sessionId: 'session-1',
       },
-      { mode: 'analysis', role: 'assistant', text: 'Analysis.', sessionId: 'session-1' },
+      {
+        mode: 'analysis',
+        role: 'assistant',
+        text: 'Analysis.',
+        sessionId: 'session-1',
+        toolCalls: [],
+      },
     ]);
   });
 
@@ -181,4 +187,59 @@ it('does not invoke the model when the selected session cannot be accessed', asy
     run(ctx, { prompt: 'Squat progress', sessionId: 'foreign' as Id<'analysisSessions'> }),
   ).rejects.toThrow('Analysis not found');
   expect(generateText).not.toHaveBeenCalled();
+});
+
+it('saves calls from both the initial answer and chart correction with full payloads', async () => {
+  const data = [{ reps: 10 }];
+  const chart = {
+    type: 'bar',
+    title: 'Squat reps',
+    xAxis: { label: 'Session', scale: 'category' },
+    yAxis: { label: 'Reps' },
+    series: [{ name: 'Squat', points: [{ x: 'Last session', y: 10 }] }],
+  };
+  vi.mocked(generateText).mockImplementation(async (options) => {
+    const correction = !!options.toolChoice;
+    const toolCall = {
+      type: 'tool-call' as const,
+      toolCallId: correction ? 'chart-call' : 'history-call',
+      toolName: correction ? 'renderChart' : 'getExerciseHistory',
+      input: correction ? chart : { exerciseId: 'exercise-1' },
+    };
+    const event = { callId: 'generation', messages: [], toolContext: undefined, toolCall };
+    await options.onToolExecutionStart?.(event);
+    if (correction) {
+      const tools = options.tools as unknown as {
+        renderChart: { execute: (input: unknown) => Promise<unknown> };
+      };
+      await tools.renderChart.execute(chart);
+    }
+    const toolOutput = {
+      ...toolCall,
+      type: 'tool-result' as const,
+      output: correction ? chart : data,
+    };
+    await options.onToolExecutionEnd?.({ ...event, toolOutput, toolExecutionMs: 1 });
+    return {
+      text: 'Your progress.',
+      steps: [{ toolCalls: [toolCall], toolResults: [toolOutput] }],
+    } as never;
+  });
+  const result = await run(ctx, { prompt: 'Plot squat reps' });
+  const toolCalls = [
+    {
+      toolCallId: 'history-call',
+      toolName: 'getExerciseHistory',
+      input: JSON.stringify({ exerciseId: 'exercise-1' }),
+      output: JSON.stringify(data),
+    },
+    {
+      toolCallId: 'chart-call',
+      toolName: 'renderChart',
+      input: JSON.stringify(chart),
+      output: JSON.stringify(chart),
+    },
+  ];
+  expect(result).toMatchObject({ chart, toolCalls });
+  expect(runMutation.mock.calls.at(-1)?.[1]).toMatchObject({ role: 'assistant', toolCalls });
 });

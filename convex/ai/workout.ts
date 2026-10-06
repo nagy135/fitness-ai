@@ -17,6 +17,7 @@ import {
   UpdateExerciseNotesInputSchema,
   UpdateSetInputSchema,
   workoutSystemPrompt,
+  type ToolCallRecord,
 } from '@fitness/ai';
 import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
@@ -25,20 +26,22 @@ import { internal } from '../_generated/api';
 import { refs } from './references';
 import { observeAI } from './telemetry';
 import { createUserModel } from './userModel';
+import { ToolCallRecorder } from './toolCallRecorder';
 
 const emptyInput = z.object({}).strict();
 
 export const respond = action({
   args: { requestId: v.id('workoutRequests') },
-  handler: async (ctx, args): Promise<{ text: string; toolCalls: string[] }> => {
+  handler: async (ctx, args): Promise<{ text: string; toolCalls: ToolCallRecord[] }> => {
     return observeAI('workout', async (trace) => {
       const started = await trace.time('begin_request', () =>
         ctx.runMutation(internal.aiMessages.beginWorkoutRequest, args),
       );
       if (!started.execute) {
         trace.status = 'reused';
-        return { text: started.request.text!, toolCalls: [] };
+        return { text: started.request.text!, toolCalls: started.request.toolCalls ?? [] };
       }
+      const toolCalls = new ToolCallRecorder();
       try {
         const [profile, catalog, draft, conversation] = await Promise.all([
           trace.time('load_profile', () => ctx.runQuery(refs.profileCurrent, {})),
@@ -99,13 +102,13 @@ export const respond = action({
           }),
           searchUserExercises: tool({
             description:
-              'Search the current user personal exercise catalog before choosing or creating an exercise.',
+              'Search the current user personal exercise catalog when CURRENT DRAFT and EXERCISE CATALOG do not already resolve a matching exercise. Reuse an existing exercise ID whenever a reasonable match exists. Search before creating an exercise.',
             inputSchema: SearchExercisesInputSchema,
             execute: ({ query, limit }) => ctx.runQuery(refs.exercisesSearch, { query, limit }),
           }),
           createUserExercise: tool({
             description:
-              'Create a personal exercise only after search shows no reasonable existing match.',
+              'Create a personal exercise only when CURRENT DRAFT, EXERCISE CATALOG, and searchUserExercises show no reasonable existing match. Reuse existing exercises for equivalent names or aliases and different set measurements. If the match is ambiguous, ask which existing exercise the user means instead of creating a duplicate.',
             inputSchema: CreateExerciseInputSchema,
             execute: (input) => ctx.runMutation(refs.exerciseCreate, input),
           }),
@@ -214,7 +217,7 @@ export const respond = action({
         });
         const result = await trace.time('generate_response', () =>
           generateText({
-            ...trace.generation('response'),
+            ...toolCalls.generation(trace.generation('response')),
             model: createUserModel(profile.aiSettings),
             system: `${workoutSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG: ${JSON.stringify(catalog)}\nCURRENT DRAFT: ${JSON.stringify(draft)}`,
             messages,
@@ -229,11 +232,12 @@ export const respond = action({
             ...args,
             text,
             failed: false,
+            toolCalls: toolCalls.calls,
           }),
         );
         return {
           text,
-          toolCalls: result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName)),
+          toolCalls: toolCalls.calls,
         };
       } catch {
         trace.status = 'failed';
@@ -244,9 +248,10 @@ export const respond = action({
             ...args,
             text,
             failed: true,
+            toolCalls: toolCalls.calls,
           }),
         );
-        return { text, toolCalls: [] };
+        return { text, toolCalls: toolCalls.calls };
       }
     });
   },

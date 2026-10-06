@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { ChevronDown, ChevronUp, List, Trash2 } from 'lucide-react-native';
 import { IconButton } from '@fitness/ui';
-import type { WorkoutSet } from '@fitness/domain';
+import type { SetMeasurementField, WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
 import { SetMeasurement } from './set-measurement';
@@ -19,7 +19,6 @@ interface DraftExercise {
   notes?: string;
   sets: DraftSet[];
 }
-export type SetPatch = Pick<WorkoutSet, 'weightKg' | 'reps' | 'durationSeconds' | 'distanceMeters'>;
 const measures = [
   { field: 'weightKg', label: 'Weight', unit: 'kg', steps: [-5, -1, 1, 5] },
   { field: 'reps', label: 'Repetitions', unit: 'reps', steps: [-1, 1] },
@@ -30,22 +29,34 @@ const measures = [
 export function WorkoutTable({
   exercises,
   busy,
+  savingSets = false,
   onRemoveSet,
   onRemoveExercise,
-  onUpdateSet,
+  onAdjustSet,
   onExample,
 }: {
   exercises: DraftExercise[];
   busy: boolean;
+  savingSets?: boolean;
   onRemoveSet: (rowId: string, setId: string) => Promise<void>;
   onRemoveExercise: (rowId: string) => Promise<void>;
-  onUpdateSet: (rowId: string, setId: string, patch: SetPatch) => Promise<void>;
+  onAdjustSet: (
+    rowId: string,
+    setId: string,
+    field: SetMeasurementField,
+    delta: number,
+  ) => Promise<void>;
   onExample: (text: string) => void;
 }) {
   const { colors } = useAppTheme();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(() => new Set());
   const [previousExercises, setPreviousExercises] = useState(exercises);
+  const [previousSavingSets, setPreviousSavingSets] = useState(savingSets);
+  // Also skip the final save/rollback render when the last adjustment settles.
+  const manualChange = savingSets || previousSavingSets;
+  if (previousSavingSets !== savingSets) setPreviousSavingSets(savingSets);
+  const destructiveBusy = busy || savingSets;
   const [changes, setChanges] = useState({
     version: 0,
     ids: [] as string[],
@@ -62,14 +73,14 @@ export function WorkoutTable({
     const changedSetIds: string[] = [];
     for (const exercise of exercises) {
       const previous = previousById.get(exercise.rowId);
-      const changed = JSON.stringify(previous) !== JSON.stringify(exercise);
+      const changed = !manualChange && JSON.stringify(previous) !== JSON.stringify(exercise);
       if (changed) changedIds.push(exercise.rowId);
       if (expandedExercises.has(exercise.rowId) || changed) {
         nextExercises.add(exercise.rowId);
       }
       const previousSets = new Map(previous?.sets.map((set) => [set.setId, set]));
       for (const set of exercise.sets) {
-        if (JSON.stringify(previousSets.get(set.setId)) !== JSON.stringify(set)) {
+        if (!manualChange && JSON.stringify(previousSets.get(set.setId)) !== JSON.stringify(set)) {
           changedSetIds.push(set.setId);
         }
         if (expanded.has(set.setId)) {
@@ -79,6 +90,8 @@ export function WorkoutTable({
     }
     if (changedIds.length)
       setChanges({ version: changes.version + 1, ids: changedIds, setIds: changedSetIds });
+    else if (manualChange && (changes.ids.length || changes.setIds.length))
+      setChanges({ version: changes.version, ids: [], setIds: [] });
     setPreviousExercises(exercises);
     setExpandedExercises(nextExercises);
     setExpanded(nextSets);
@@ -185,10 +198,10 @@ export function WorkoutTable({
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${exercise.name} from current workout`}
                       accessibilityHint="Removes this exercise and all its sets from the draft"
-                      accessibilityState={{ disabled: busy }}
-                      disabled={busy}
+                      accessibilityState={{ disabled: destructiveBusy }}
+                      disabled={destructiveBusy}
                       onPress={() => void onRemoveExercise(exercise.rowId)}
-                      className={`min-h-11 flex-row items-center gap-1 rounded-xl px-2 active:bg-soft dark:active:bg-soft-dark ${busy ? 'opacity-40' : ''}`}
+                      className={`min-h-11 flex-row items-center gap-1 rounded-xl px-2 active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
                     >
                       <Trash2 size={18} color={colors.danger} />
                       <Text className="text-sm font-semibold text-danger dark:text-danger-dark">
@@ -202,7 +215,7 @@ export function WorkoutTable({
                         <ExerciseRecords
                           exerciseId={exercise.exerciseId}
                           name={exercise.name}
-                          busy={busy}
+                          busy={destructiveBusy}
                           onExample={onExample}
                         />
                       ) : null}
@@ -264,9 +277,12 @@ export function WorkoutTable({
                                             }}
                                             disabled={busy || value + step <= 0}
                                             onPress={() =>
-                                              void onUpdateSet(exercise.rowId, set.setId, {
-                                                [field]: Number((value + step).toFixed(2)),
-                                              })
+                                              void onAdjustSet(
+                                                exercise.rowId,
+                                                set.setId,
+                                                field,
+                                                step,
+                                              )
                                             }
                                             className={`min-h-11 flex-1 items-center justify-center rounded-lg bg-canvas dark:bg-canvas-dark ${busy || value + step <= 0 ? 'opacity-35' : ''}`}
                                           >
@@ -291,7 +307,7 @@ export function WorkoutTable({
                                   </Text>
                                   <IconButton
                                     accessibilityLabel={`Remove ${exercise.name} set ${index + 1}`}
-                                    disabled={busy}
+                                    disabled={destructiveBusy}
                                     onPress={() => void onRemoveSet(exercise.rowId, set.setId)}
                                   >
                                     <Trash2 size={18} color={colors.danger} />

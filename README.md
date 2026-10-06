@@ -331,6 +331,22 @@ The latest session is restored when the app opens. **Earlier analysis messages**
 conversations from before sessions were introduced accessible. Deploy the updated
 Convex schema and functions before using this feature in a new mobile build.
 
+New assistant replies save the tools they executed, including each call's full
+input and result (or error). Tap a tool-name pill in workout reply **History**, an
+analysis answer, or **Conversation** to open its payload; close it with **×**,
+the backdrop, or the system back action. Tool details remain available after
+reopening a saved analysis or retrieving a completed workout request. Older
+replies without saved tool details continue to show their text and charts.
+Deploy the updated Convex schema and functions to start recording these details.
+The latest workout reply opens automatically and stays visible until you close
+**History**; a new reply opens it again with only its matching prompt and tools.
+
+Manual set adjustment buttons update immediately and accept repeated taps while
+the changes save. Each tap is saved as an increment, so rapid taps accumulate;
+manual changes do not pulse or scroll the exercise. Review, deletion, and AI
+submissions wait for pending adjustments to finish. Deploy the updated
+`workoutDrafts.adjustSet` function before using these buttons in a new APK.
+
 Analysis answers and saved assistant messages render Markdown, including tables
 and fenced `mermaid` diagrams. Diagrams support zoom, expansion, and a readable
 source fallback for invalid syntax. Vertical swipes over Markdown and diagrams

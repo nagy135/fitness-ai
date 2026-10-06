@@ -18,6 +18,7 @@ import {
   remove as deleteWorkout,
 } from './workouts';
 import {
+  adjustSet,
   addExercises,
   removeExercise,
   removeSet,
@@ -26,6 +27,7 @@ import {
   undoLastAction,
 } from './workoutDrafts';
 import { assertWorkoutRequest } from './lib/workoutRequest';
+import type { ToolCallRecord } from '@fitness/ai';
 
 vi.mock('./lib/auth', () => ({ requireUserProfile: vi.fn() }));
 
@@ -37,9 +39,10 @@ const begin = handler<
   { requestId: Id<'workoutRequests'> },
   { execute: boolean; request: Doc<'workoutRequests'> }
 >(beginWorkoutRequest);
-const finish = handler<{ requestId: Id<'workoutRequests'>; text: string; failed: boolean }, void>(
-  finishWorkoutRequest,
-);
+const finish = handler<
+  { requestId: Id<'workoutRequests'>; text: string; failed: boolean; toolCalls?: ToolCallRecord[] },
+  void
+>(finishWorkoutRequest);
 const acknowledge = handler<{ requestId: Id<'workoutRequests'> }, void>(acknowledgeWorkoutRequest);
 const history = handler<{ mode: 'workout' | 'analysis'; limit?: number }, Doc<'aiMessages'>[]>(
   recent,
@@ -57,6 +60,16 @@ const add = handler<
   string[]
 >(addExercises);
 const remove = handler<{ rowId: string; setId: string; source: 'user_ui' }, void>(removeSet);
+const adjust = handler<
+  {
+    draftId: Id<'workoutDrafts'>;
+    rowId: string;
+    setId: string;
+    field: 'weightKg' | 'reps' | 'durationSeconds' | 'distanceMeters';
+    delta: number;
+  },
+  void
+>(adjustSet);
 const aiUndo = handler<{ source: 'ai'; requestId: Id<'workoutRequests'> }, void>(undoLastAction);
 const aiRemoveExercise = handler<
   { rowId: string; source: 'ai'; requestId: Id<'workoutRequests'> },
@@ -152,6 +165,71 @@ function batch(requestId: Id<'workoutRequests'>) {
     exercises: [{ exerciseId, sets: [{ reps: 10 }, { reps: 10 }] }],
   };
 }
+
+describe('manual set increments', () => {
+  const args = { draftId, rowId: 'bench', setId: 'set', field: 'reps' as const, delta: 1 };
+  beforeEach(() => {
+    rows[1].trackingType = 'weight_reps';
+    rows[0].exercises = [
+      {
+        rowId: 'bench',
+        exerciseId,
+        name: 'Bench',
+        sets: [{ setId: 'set', reps: 8, weightKg: 80 }],
+      },
+    ];
+  });
+  it('saves every rapid increment and changes only the requested measurement', async () => {
+    for (let tap = 0; tap < 5; tap++) await adjust(ctx, args);
+    await adjust(ctx, { ...args, field: 'weightKg', delta: 5 });
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets[0]).toEqual({
+      setId: 'set',
+      reps: 13,
+      weightKg: 85,
+    });
+    expect(rows.filter((row) => row.table === 'draftEvents')).toHaveLength(6);
+    expect(rows.filter((row) => row.table === 'workouts')).toHaveLength(0);
+  });
+  it('rejects a wrong draft, a missing set and invalid decrements without writing', async () => {
+    const original = structuredClone(rows);
+    await expect(
+      adjust(ctx, { ...args, draftId: 'foreign' as Id<'workoutDrafts'> }),
+    ).rejects.toThrow('no longer selected');
+    await expect(adjust(ctx, { ...args, setId: 'missing' })).rejects.toThrow('not found');
+    for (const delta of [-8, 0.5, NaN, Infinity]) {
+      await expect(adjust(ctx, { ...args, delta })).rejects.toThrow('positive');
+    }
+    expect(rows).toEqual(original);
+  });
+  it('blocks manual increments during an AI request and preserves tracking normalization', async () => {
+    const requestId = await running();
+    await expect(adjust(ctx, args)).rejects.toThrow('Wait for');
+    await finish(ctx, { requestId, text: 'Done', failed: false });
+    rows[1].trackingType = 'reps';
+    await adjust(ctx, args);
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets[0]).toEqual({
+      setId: 'set',
+      reps: 9,
+    });
+  });
+});
+
+it('keeps tool payloads in the workout receipt and saved conversation across retries', async () => {
+  const requestId = await running();
+  const toolCalls = [
+    {
+      toolCallId: 'call-1',
+      toolName: 'addExercisesToDraft',
+      input: '{"exercises":[]}',
+      output: '["row-1"]',
+    },
+  ];
+  await finish(ctx, { requestId, text: 'Added', failed: false, toolCalls });
+  expect((await begin(ctx, { requestId })).request.toolCalls).toEqual(toolCalls);
+  const messages = await history(ctx, { mode: 'workout' });
+  expect(messages.find((message) => message.role === 'assistant')?.toolCalls).toEqual(toolCalls);
+  expect(messages.find((message) => message.role === 'user')?.toolCalls).toBeUndefined();
+});
 
 describe('durable workout submissions', () => {
   it('preserves committed exercises and sets when AI attempts rollback and the response fails', async () => {

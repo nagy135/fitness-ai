@@ -1,6 +1,14 @@
 import { v } from 'convex/values';
 import { AI_MODELS, AI_REASONING_OPTIONS, LEGACY_AI_MODEL_IDS } from '@fitness/ai/settings';
 
+export const toolCallValidator = v.object({
+  toolCallId: v.string(),
+  toolName: v.string(),
+  input: v.string(),
+  output: v.optional(v.string()),
+  error: v.optional(v.string()),
+});
+
 export const aiSettingsValidator = v.object({
   model: v.union(...AI_MODELS.map(({ id }) => v.literal(id))),
   reasoningEffort: v.union(...AI_REASONING_OPTIONS.map(({ id }) => v.literal(id))),

@@ -6,6 +6,7 @@ import { useWorkoutSession } from './use-workout-session';
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
   mutation: vi.fn(async () => 'draft-1'),
+  adjustment: vi.fn(async (): Promise<void> => undefined),
   analysis: null as {
     _id: string;
     title: string;
@@ -18,7 +19,7 @@ vi.mock('@fitness/convex/api', () => ({
     workoutDrafts: {
       getOrCreate: 'create',
       current: 'draft',
-      updateSet: 'update',
+      adjustSet: 'adjust',
       removeSet: 'remove',
       removeExercise: 'removeExercise',
     },
@@ -36,7 +37,8 @@ vi.mock('@fitness/convex/api', () => ({
 vi.mock('convex/react', () => ({
   useConvexAuth: () => ({ isAuthenticated: true }),
   useAction: () => mocks.action,
-  useMutation: () => mocks.mutation,
+  useMutation: (ref: string) =>
+    ref === 'adjust' ? { withOptimisticUpdate: () => mocks.adjustment } : mocks.mutation,
   useQuery: (ref: string, args: unknown) =>
     args === 'skip'
       ? undefined
@@ -48,8 +50,8 @@ vi.mock('convex/react', () => ({
 }));
 let session: ReturnType<typeof useWorkoutSession>;
 let renderer: ReactTestRenderer;
-function Harness() {
-  const current = useWorkoutSession('analysis', false, false);
+function Harness({ mode = 'analysis' }: { mode?: 'workout' | 'analysis' }) {
+  const current = useWorkoutSession(mode, false, false);
   useEffect(() => {
     session = current;
   });
@@ -58,6 +60,7 @@ function Harness() {
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.clearAllMocks();
+  mocks.adjustment.mockReset().mockResolvedValue(undefined);
   mocks.analysis = null;
 });
 afterEach(async () => {
@@ -157,4 +160,59 @@ it('retains the selected session after a failed request so retry stays in the sa
   });
   expect(mocks.mutation).not.toHaveBeenCalled();
   expect(mocks.action).toHaveBeenLastCalledWith({ prompt: 'Graph volume', sessionId: firstId });
+});
+
+it('accepts five adjustments without locking the buttons, and waits for all saves before other writes', async () => {
+  const finish: (() => void)[] = [];
+  mocks.adjustment.mockImplementation(() => new Promise<void>((resolve) => finish.push(resolve)));
+  await act(() => {
+    renderer = create(createElement(Harness, { mode: 'workout' }));
+  });
+  const pending: Promise<void>[] = [];
+  await act(() => {
+    for (let tap = 0; tap < 5; tap++) pending.push(session.adjustSet('bench', 'set', 'reps', 1));
+  });
+  expect(mocks.adjustment).toHaveBeenCalledTimes(5);
+  expect(mocks.adjustment).toHaveBeenLastCalledWith({
+    draftId: 'draft-1',
+    rowId: 'bench',
+    setId: 'set',
+    field: 'reps',
+    delta: 1,
+  });
+  expect(session.busy).toBe(false);
+  expect(session.savingSets).toBe(true);
+  mocks.mutation.mockClear();
+  await act(async () => {
+    await session.removeSet('bench', 'set');
+    expect(await session.submitPrompt('Add a set')).toBe(false);
+  });
+  expect(mocks.mutation).not.toHaveBeenCalled();
+  await act(async () => {
+    finish[2]();
+    await pending[2];
+  });
+  expect(session.savingSets).toBe(true);
+  await act(async () => {
+    finish.forEach((resolve) => resolve());
+    await Promise.all(pending);
+  });
+  expect(session.savingSets).toBe(false);
+  await act(async () => {
+    await session.removeSet('bench', 'set');
+  });
+  expect(mocks.mutation).toHaveBeenCalledWith({ rowId: 'bench', setId: 'set', source: 'user_ui' });
+});
+
+it('reports a rejected manual save and releases the pending-save state', async () => {
+  mocks.adjustment.mockRejectedValue(new Error('offline'));
+  await act(() => {
+    renderer = create(createElement(Harness, { mode: 'workout' }));
+  });
+  await act(async () => {
+    await session.adjustSet('bench', 'set', 'weightKg', 5);
+  });
+  expect(session.error).toContain('could not be saved');
+  expect(session.savingSets).toBe(false);
+  expect(session.busy).toBe(false);
 });

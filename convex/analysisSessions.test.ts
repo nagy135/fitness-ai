@@ -104,6 +104,32 @@ const chart = {
   points: [{ x: 1, y: 80 }],
 };
 
+it('restores tool payloads on the saved answer and in paginated conversation history', async () => {
+  const id = await create(ctx, { title: 'Squat records' });
+  const toolCalls = [
+    {
+      toolCallId: 'call-1',
+      toolName: 'getExerciseHistory',
+      input: '{"exerciseId":"squat"}',
+      output: '[{"reps":10}]',
+    },
+  ];
+  await append(ctx, {
+    mode: 'analysis',
+    role: 'assistant',
+    text: 'Ten reps',
+    sessionId: id,
+    toolCalls,
+  });
+  expect((await get(ctx, { sessionId: id }))?.response?.toolCalls).toEqual(toolCalls);
+  expect(
+    (await conversation(ctx, { sessionId: id, paginationOpts: page })).page[0].toolCalls,
+  ).toEqual(toolCalls);
+  expect(await context(ctx, { sessionId: id })).toEqual([
+    { role: 'assistant', content: 'Ten reps' },
+  ]);
+});
+
 it('restores a named analysis and chart from storage, keeping other sessions separate', async () => {
   const first = await create(ctx, { title: '  Squat progress  ' });
   await append(ctx, { mode: 'analysis', role: 'user', text: 'Graph squat', sessionId: first });

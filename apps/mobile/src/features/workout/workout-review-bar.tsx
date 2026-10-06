@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button } from '@fitness/ui';
 import type { WorkoutExchange } from './latest-workout-exchange';
+import { ToolCallPills } from '@/components/tool-call-pills';
 
 export function WorkoutReviewBar({
   response,
@@ -18,21 +19,20 @@ export function WorkoutReviewBar({
 }) {
   const [previousResponse, setPreviousResponse] = useState(response?.id);
   const [visible, setVisible] = useState(!!response);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   if (previousResponse !== response?.id) {
     setPreviousResponse(response?.id);
     setVisible(!!response);
   }
-  useEffect(() => {
-    if (response?.id) timer.current = setTimeout(() => setVisible(false), 2000);
-    return () => clearTimeout(timer.current);
-  }, [response?.id]);
 
   return (
     <View className="px-5 pb-2" style={{ flexShrink: 0 }}>
       {visible && response ? (
         <View className="mb-2 rounded-xl bg-soft px-4 py-3 dark:bg-soft-dark">
-          <ScrollView style={{ maxHeight: 120, flexGrow: 0 }} nestedScrollEnabled>
+          <ScrollView
+            style={{ maxHeight: 120, flexGrow: 0 }}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
             <Text className="text-xs font-bold text-muted dark:text-muted-dark">You</Text>
             <Text selectable className="mb-2 text-sm leading-5 text-ink dark:text-ink-dark">
               {response.prompt}
@@ -41,6 +41,7 @@ export function WorkoutReviewBar({
             <Text selectable className="text-sm leading-5 text-ink dark:text-ink-dark">
               {response.text}
             </Text>
+            <ToolCallPills key={response.id} calls={response.toolCalls} />
           </ScrollView>
         </View>
       ) : null}
@@ -56,7 +57,6 @@ export function WorkoutReviewBar({
               accessibilityState={{ checked: visible, disabled: !response }}
               disabled={!response}
               onPress={() => {
-                clearTimeout(timer.current);
                 setVisible((previous) => !previous);
               }}
             >

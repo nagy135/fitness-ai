@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getFunctionName } from 'convex/server';
 import { generateText } from 'ai';
-import { createFitnessModel, workoutToolNames } from '@fitness/ai';
+import { createFitnessModel, workoutToolNames, type ToolCallRecord } from '@fitness/ai';
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { respond } from './workout';
@@ -20,7 +20,7 @@ const run = (
     _handler: (
       ctx: ActionCtx,
       args: { requestId: Id<'workoutRequests'> },
-    ) => Promise<{ text: string }>;
+    ) => Promise<{ text: string; toolCalls: ToolCallRecord[] }>;
   }
 )._handler;
 const requestId = 'request-1' as Id<'workoutRequests'>;
@@ -72,6 +72,44 @@ beforeEach(() => {
     }),
   } as unknown as ActionCtx;
   vi.mocked(generateText).mockResolvedValue({ text: 'Corrected.', steps: [] } as never);
+});
+
+it('persists already executed tool payloads when a later model step fails', async () => {
+  vi.mocked(generateText).mockImplementation(async (options) => {
+    const toolCall = {
+      type: 'tool-call' as const,
+      toolCallId: 'add-1',
+      toolName: 'addExercisesToDraft',
+      input: additions,
+    };
+    const event = { callId: 'generation', messages: [], toolContext: undefined, toolCall };
+    await options.onToolExecutionStart?.(event);
+    await options.onToolExecutionEnd?.({
+      ...event,
+      toolExecutionMs: 1,
+      toolOutput: { ...toolCall, type: 'tool-result', output: ['saved-row'] },
+    });
+    throw new Error('Model unavailable after adding sets');
+  });
+  const toolCalls = [
+    {
+      toolCallId: 'add-1',
+      toolName: 'addExercisesToDraft',
+      input: JSON.stringify(additions),
+      output: '["saved-row"]',
+    },
+  ];
+  expect(await run(ctx, { requestId })).toMatchObject({ toolCalls });
+  expect(mutate.mock.calls.at(-1)?.[1]).toMatchObject({ failed: true, toolCalls });
+});
+
+it('restores tool payloads from a completed receipt without rerunning the model', async () => {
+  const toolCalls = [
+    { toolCallId: 'call-1', toolName: 'updateSet', input: '{"reps":12}', output: 'null' },
+  ];
+  mutate.mockResolvedValueOnce({ execute: false, request: { text: 'Corrected.', toolCalls } });
+  expect(await run(ctx, { requestId })).toEqual({ text: 'Corrected.', toolCalls });
+  expect(generateText).not.toHaveBeenCalled();
 });
 
 describe('workout AI request orchestration', () => {
