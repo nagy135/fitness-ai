@@ -8,6 +8,7 @@ import {
   AI_MODELS,
   AI_REASONING_OPTIONS,
   resolveAISettings,
+  supportsReasoningEffort,
   type AISettings as Settings,
 } from '@fitness/ai/settings';
 import { ErrorNotice } from '@/components/error-notice';
@@ -101,8 +102,8 @@ export function AISettings() {
             accessibilityLabel="Reasoning effort"
             className="flex-row flex-wrap gap-2"
           >
-            {AI_REASONING_OPTIONS.filter(
-              (effort) => selected.model !== 'openai/gpt-6-astra' || effort.id !== 'none',
+            {AI_REASONING_OPTIONS.filter((effort) =>
+              supportsReasoningEffort(selected.model, effort.id),
             ).map((effort) => (
               <Pressable
                 key={effort.id}
@@ -132,7 +133,7 @@ export function AISettings() {
             ))}
           </View>
           <Text className="mb-4 mt-3 text-xs text-muted dark:text-muted-dark">
-            Default: GPT-6 Sol · Low
+            Default: Sol · Low
           </Text>
           <ErrorNotice message={error} />
           <Button loading={busy} disabled={!changed} onPress={() => void save()}>

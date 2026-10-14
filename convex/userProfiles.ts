@@ -2,10 +2,11 @@ import { v } from 'convex/values';
 import { resolveAISettings } from '@fitness/ai/settings';
 import { mutation, query } from './_generated/server';
 import { requireAuthenticatedUser, requireUserProfile } from './lib/auth';
-import { aiSettingsValidator } from './model';
+import { storedAISettingsValidator } from './model';
 
 export const updateAISettings = mutation({
-  args: { settings: aiSettingsValidator },
+  // Installed older apps may still send retired IDs; normalize them before saving.
+  args: { settings: storedAISettingsValidator },
   handler: async (ctx, { settings }) => {
     const user = await requireUserProfile(ctx);
     await ctx.db.patch(user._id, { aiSettings: resolveAISettings(settings) });

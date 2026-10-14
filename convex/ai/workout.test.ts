@@ -128,7 +128,9 @@ describe('workout AI request orchestration', () => {
         ? Promise.resolve({ units: 'metric', aiSettings })
         : originalQuery(ref as never, args as never)) as ActionCtx['runQuery'];
     await run(ctx, { requestId });
-    expect(createFitnessModel).toHaveBeenCalledWith(expect.objectContaining(aiSettings));
+    expect(createFitnessModel).toHaveBeenCalledWith(
+      expect.objectContaining({ ...aiSettings, model: 'openai/gpt-6.1-sol' }),
+    );
   });
   it('retrieves saved workout and exercise data on demand through read-only tools', async () => {
     const query = vi.fn<(name: string, args: unknown) => Promise<unknown>>(async () => [

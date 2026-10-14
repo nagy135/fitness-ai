@@ -75,19 +75,13 @@ export function ConversationDrawer({
                   className={
                     fromUser
                       ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
-                      : `${mode === 'analysis' ? 'w-[94%]' : 'max-w-[94%]'} rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark`
+                      : 'w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
                   }
                 >
-                  {!fromUser && mode === 'analysis' ? (
+                  {!fromUser ? (
                     <AnalysisMarkdown text={message.text} compact />
                   ) : (
-                    <Text
-                      className={
-                        fromUser
-                          ? 'text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark'
-                          : 'text-[15px] leading-6 text-ink dark:text-ink-dark'
-                      }
-                    >
+                    <Text className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark">
                       {message.text}
                     </Text>
                   )}

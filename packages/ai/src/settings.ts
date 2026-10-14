@@ -1,7 +1,6 @@
 export const AI_MODELS = [
-  { id: 'openai/gpt-6-luna', name: 'GPT-6 Luna' },
-  { id: 'openai/gpt-6-sol', name: 'GPT-6 Sol' },
-  { id: 'openai/gpt-6-astra', name: 'GPT-6 Astra' },
+  { id: 'openai/gpt-6-luna', name: 'Luna' },
+  { id: 'openai/gpt-6.1-sol', name: 'Sol' },
 ] as const;
 
 // Older saved preferences must remain readable while profiles are upgraded.
@@ -9,6 +8,8 @@ export const LEGACY_AI_MODEL_IDS = [
   'openai/gpt-5.6-luna',
   'openai/gpt-5.6-terra',
   'openai/gpt-5.6-sol',
+  'openai/gpt-6-sol',
+  'openai/gpt-6-astra',
 ] as const;
 
 export const AI_REASONING_OPTIONS = [
@@ -29,25 +30,26 @@ export type StoredAISettings = {
 };
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
-  model: 'openai/gpt-6-sol',
+  model: 'openai/gpt-6.1-sol',
   reasoningEffort: 'low',
 };
+
+export function supportsReasoningEffort(model: AIModelId, effort: AIReasoningEffort): boolean {
+  return effort !== 'none' || model !== 'openai/gpt-6.1-sol';
+}
 
 export function resolveAISettings(settings?: StoredAISettings): AISettings {
   if (!settings) return DEFAULT_AI_SETTINGS;
   const model: AIModelId =
     settings.model === 'openai/gpt-5.6-luna'
       ? 'openai/gpt-6-luna'
-      : settings.model === 'openai/gpt-5.6-terra'
-        ? 'openai/gpt-6-sol'
-        : settings.model === 'openai/gpt-5.6-sol'
-          ? 'openai/gpt-6-astra'
-          : settings.model;
+      : settings.model === 'openai/gpt-6-luna'
+        ? settings.model
+        : 'openai/gpt-6.1-sol';
   return {
     model,
-    reasoningEffort:
-      model === 'openai/gpt-6-astra' && settings.reasoningEffort === 'none'
-        ? 'low'
-        : settings.reasoningEffort,
+    reasoningEffort: supportsReasoningEffort(model, settings.reasoningEffort)
+      ? settings.reasoningEffort
+      : 'low',
   };
 }

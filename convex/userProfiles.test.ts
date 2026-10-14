@@ -3,17 +3,17 @@ import type { MutationCtx } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { requireUserProfile } from './lib/auth';
 import { updateAISettings } from './userProfiles';
-import type { AISettings } from '@fitness/ai/settings';
+import type { StoredAISettings } from '@fitness/ai/settings';
 
 vi.mock('./lib/auth', () => ({ requireUserProfile: vi.fn() }));
 const run = (
   updateAISettings as unknown as {
-    _handler: (ctx: MutationCtx, args: { settings: AISettings }) => Promise<void>;
+    _handler: (ctx: MutationCtx, args: { settings: StoredAISettings }) => Promise<void>;
   }
 )._handler;
 const patch = vi.fn();
 const ctx = { db: { patch } } as unknown as MutationCtx;
-const settings: AISettings = { model: 'openai/gpt-6-sol', reasoningEffort: 'low' };
+const settings: StoredAISettings = { model: 'openai/gpt-6.1-sol', reasoningEffort: 'low' };
 beforeEach(() => vi.resetAllMocks());
 
 it('persists both preferences on the authenticated profile', async () => {
@@ -30,7 +30,25 @@ it('cannot save preferences without authentication', async () => {
   expect(patch).not.toHaveBeenCalled();
 });
 
-it('normalizes unsupported Astra none reasoning before persisting', async () => {
+it.each(['high', 'none'] as const)(
+  'persists GPT-6.1 Sol with supported %s reasoning',
+  async (effort) => {
+    vi.mocked(requireUserProfile).mockResolvedValue({
+      _id: 'authenticated-user',
+    } as Doc<'userProfiles'>);
+    await run(ctx, {
+      settings: { model: 'openai/gpt-6.1-sol', reasoningEffort: effort },
+    });
+    expect(patch).toHaveBeenCalledExactlyOnceWith('authenticated-user', {
+      aiSettings: {
+        model: 'openai/gpt-6.1-sol',
+        reasoningEffort: effort === 'none' ? 'low' : effort,
+      },
+    });
+  },
+);
+
+it('upgrades a retired Astra choice from an older app before persisting', async () => {
   vi.mocked(requireUserProfile).mockResolvedValue({
     _id: 'authenticated-user',
   } as Doc<'userProfiles'>);
@@ -38,6 +56,6 @@ it('normalizes unsupported Astra none reasoning before persisting', async () => 
     settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'none' },
   });
   expect(patch).toHaveBeenCalledExactlyOnceWith('authenticated-user', {
-    aiSettings: { model: 'openai/gpt-6-astra', reasoningEffort: 'low' },
+    aiSettings: { model: 'openai/gpt-6.1-sol', reasoningEffort: 'low' },
   });
 });

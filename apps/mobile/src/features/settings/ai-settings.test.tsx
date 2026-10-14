@@ -42,9 +42,15 @@ afterEach(async () => {
 describe('AI preferences', () => {
   it('shows Sol / Low defaults and waits for changes before saving', async () => {
     await mount();
-    expect(find('GPT-6 Luna')).toBeDefined();
-    expect(find('GPT-6 Sol').props.accessibilityState.checked).toBe(true);
-    expect(find('GPT-6 Astra')).toBeDefined();
+    expect(find('Luna')).toBeDefined();
+    expect(find('Sol').props.accessibilityState.checked).toBe(true);
+    expect(
+      renderer.root
+        .findAllByProps({ accessibilityRole: 'radio' })
+        .filter((node) => ['Luna', 'Sol'].includes(node.props.accessibilityLabel)),
+    ).toHaveLength(2);
+    expect(() => find('GPT-6 Astra')).toThrow();
+    expect(() => find('GPT-6 Sol')).toThrow();
     expect(find('Low reasoning').props.accessibilityState.checked).toBe(true);
     expect(save().props.disabled).toBe(true);
     expect(update).not.toHaveBeenCalled();
@@ -52,21 +58,22 @@ describe('AI preferences', () => {
 
   it('saves both selections and restores them when reopened', async () => {
     await mount();
-    await act(() => find('GPT-6 Astra').props.onPress());
+    await act(() => find('Sol').props.onPress());
     await act(() => find('High reasoning').props.onPress());
     await act(() => save().props.onPress());
     expect(update).toHaveBeenCalledExactlyOnceWith({
-      settings: { model: 'openai/gpt-6-astra', reasoningEffort: 'high' },
+      settings: { model: 'openai/gpt-6.1-sol', reasoningEffort: 'high' },
     });
     await act(() => renderer.unmount());
     await mount();
-    expect(find('GPT-6 Astra').props.accessibilityState.checked).toBe(true);
+    expect(find('Sol').props.accessibilityState.checked).toBe(true);
     expect(find('High reasoning').props.accessibilityState.checked).toBe(true);
   });
 
   it('preserves the selection on save failure so it can be retried', async () => {
     update.mockRejectedValueOnce(new Error('Offline'));
     await mount();
+    await act(() => find('Luna').props.onPress());
     await act(() => find('None reasoning').props.onPress());
     await act(() => save().props.onPress());
     expect(renderer.root.findByProps({ accessibilityRole: 'alert' })).toBeDefined();
@@ -78,14 +85,14 @@ describe('AI preferences', () => {
   it('does not expose editable defaults before the profile loads', async () => {
     profile = undefined;
     await mount();
-    expect(() => find('GPT-6 Sol')).toThrow();
+    expect(() => find('Sol')).toThrow();
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('maps an old saved choice and removes unsupported none reasoning for Astra', async () => {
+  it('maps an old saved choice and removes unsupported none reasoning for Sol', async () => {
     profile = { aiSettings: { model: 'openai/gpt-5.6-sol', reasoningEffort: 'none' } };
     await mount();
-    expect(find('GPT-6 Astra').props.accessibilityState.checked).toBe(true);
+    expect(find('Sol').props.accessibilityState.checked).toBe(true);
     expect(find('Low reasoning').props.accessibilityState.checked).toBe(true);
     expect(() => find('None reasoning')).toThrow();
   });

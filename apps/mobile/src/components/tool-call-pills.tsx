@@ -44,7 +44,7 @@ export function ToolCallPills({ calls }: { calls?: ToolCallRecord[] }) {
             accessibilityHint="Opens the full input and result in a dialog"
             hitSlop={4}
             onPress={() => setSelected(call)}
-            className="max-w-full rounded-full border border-line bg-soft p-1 active:opacity-70 dark:border-line-dark dark:bg-soft-dark"
+            className="max-w-full rounded-full border border-line bg-soft px-[5px] py-1 active:opacity-70 dark:border-line-dark dark:bg-soft-dark"
           >
             <Text className="text-[11px] font-medium leading-4 text-ink dark:text-ink-dark">
               {call.toolName}

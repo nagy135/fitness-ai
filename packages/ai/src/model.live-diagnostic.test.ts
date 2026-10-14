@@ -41,7 +41,7 @@ it.runIf(process.env.RUN_LIVE_AI_DIAGNOSTICS === '1')(
     };
     try {
       const result = await generateText({
-        model: createFitnessModel({ provider: 'openrouter', apiKey, model: 'openai/gpt-6-sol' }),
+        model: createFitnessModel({ provider: 'openrouter', apiKey, model: 'openai/gpt-6.1-sol' }),
         system: 'You are a workout tracker. Use tools only when needed.',
         prompt: 'Reply OK.',
         tools,

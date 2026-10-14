@@ -51,8 +51,11 @@ OPENROUTER_API_KEY=your-key-here
 
 Choose the model and reasoning effort in Settings → AI preferences. Preferences
 are saved per account and apply to logging, analysis, and name suggestions.
-New and existing accounts without saved preferences default to GPT-6 Sol / Low.
-Saved GPT-5.6 preferences automatically use the corresponding GPT-6 tier on the next request.
+New and existing accounts without saved preferences default to Sol / Low.
+Both model pickers offer only Sol (GPT-6.1 Sol) and Luna (GPT-6 Luna).
+Saved GPT-6 Sol, GPT-6 Astra, and GPT-5.6 Terra/Sol preferences automatically use
+GPT-6.1 Sol on the next request; saved GPT-5.6 Luna preferences use GPT-6 Luna.
+GPT-6.1 Sol requires reasoning; switching to Sol from None selects Low.
 The legacy `AI_MODEL` environment variable no longer overrides user preferences.
 
 Do not commit `.env.local`. AI and authentication secrets are server-only and must never use an `EXPO_PUBLIC_` prefix.

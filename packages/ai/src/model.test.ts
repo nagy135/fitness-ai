@@ -8,8 +8,9 @@ afterEach(() => vi.unstubAllGlobals());
 
 it.each([
   { model: DEFAULT_AI_SETTINGS.model, reasoningEffort: undefined, expected: 'low' },
-  { model: 'openai/gpt-6-astra' as const, reasoningEffort: 'high' as const, expected: 'high' },
   { model: 'openai/gpt-6-luna' as const, reasoningEffort: 'none' as const, expected: 'none' },
+  { model: 'openai/gpt-6.1-sol' as const, reasoningEffort: 'high' as const, expected: 'high' },
+  { model: 'openai/gpt-6.1-sol' as const, reasoningEffort: 'none' as const, expected: 'low' },
 ])(
   'sends $model / $expected through the actual OpenRouter adapter',
   async ({ model, reasoningEffort, expected }) => {
@@ -54,32 +55,33 @@ it.each([
   },
 );
 
-it('sends workout tools through Responses and reads a function call', async () => {
-  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-    new Response(
-      JSON.stringify({
-        id: 'test-response',
-        created_at: 1,
-        model: 'openai/gpt-6-sol',
-        output: [
-          {
-            type: 'function_call',
-            id: 'call-item-1',
-            call_id: 'call-1',
-            name: 'add_set',
-            arguments: '{"reps":5}',
-          },
-        ],
-        usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6 },
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    ),
+it('sends Sol workout tools through Responses and reads a function call', async () => {
+  const fetch = vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          id: 'test-response',
+          created_at: 1,
+          model: 'openai/gpt-6.1-sol',
+          output: [
+            {
+              type: 'function_call',
+              id: 'call-item-1',
+              call_id: 'call-1',
+              name: 'add_set',
+              arguments: '{"reps":5}',
+            },
+          ],
+          usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
   );
   vi.stubGlobal('fetch', fetch);
   const result = await generateText({
     model: createFitnessModel({
       provider: 'openrouter',
-      model: 'openai/gpt-6-sol',
+      model: 'openai/gpt-6.1-sol',
       apiKey: 'test-key',
     }),
     prompt: 'Add five reps',

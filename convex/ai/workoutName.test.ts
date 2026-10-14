@@ -71,7 +71,9 @@ describe('workout name suggestions', () => {
     runQuery.mockResolvedValue({ ...context, aiSettings });
     vi.mocked(generateText).mockResolvedValue({ output: { name: 'Legs' } } as never);
     await handler(ctx, args);
-    expect(createFitnessModel).toHaveBeenCalledWith(expect.objectContaining(aiSettings));
+    expect(createFitnessModel).toHaveBeenCalledWith(
+      expect.objectContaining({ ...aiSettings, model: 'openai/gpt-6.1-sol' }),
+    );
     expect(vi.mocked(generateText).mock.calls[0][0].prompt).toBe(JSON.stringify(context));
   });
 

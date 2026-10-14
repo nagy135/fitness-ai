@@ -8,6 +8,7 @@ import {
   AI_MODELS,
   AI_REASONING_OPTIONS,
   resolveAISettings,
+  supportsReasoningEffort,
   type AISettings,
 } from '@fitness/ai/settings';
 import { ErrorNotice } from '@/components/error-notice';
@@ -146,8 +147,8 @@ export function QuickModelSettings({
           <SettingsSelect
             label="Reasoning"
             value={selected.reasoningEffort}
-            options={AI_REASONING_OPTIONS.filter(
-              (effort) => selected.model !== 'openai/gpt-6-astra' || effort.id !== 'none',
+            options={AI_REASONING_OPTIONS.filter((effort) =>
+              supportsReasoningEffort(selected.model, effort.id),
             )}
             expanded={expanded === 'reasoning'}
             onToggle={() => setExpanded(expanded === 'reasoning' ? undefined : 'reasoning')}

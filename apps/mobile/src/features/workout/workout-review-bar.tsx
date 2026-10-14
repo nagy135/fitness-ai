@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { Button } from '@fitness/ui';
 import type { WorkoutExchange } from './latest-workout-exchange';
 import { ToolCallPills } from '@/components/tool-call-pills';
+import { AnalysisMarkdown } from '@/components/analysis-markdown';
 
 export function WorkoutReviewBar({
   response,
@@ -17,12 +18,7 @@ export function WorkoutReviewBar({
   editing: boolean;
   onReview: () => void;
 }) {
-  const [previousResponse, setPreviousResponse] = useState(response?.id);
-  const [visible, setVisible] = useState(!!response);
-  if (previousResponse !== response?.id) {
-    setPreviousResponse(response?.id);
-    setVisible(!!response);
-  }
+  const [visible, setVisible] = useState(false);
 
   return (
     <View className="px-5 pb-2" style={{ flexShrink: 0 }}>
@@ -38,9 +34,7 @@ export function WorkoutReviewBar({
               {response.prompt}
             </Text>
             <Text className="text-xs font-bold text-muted dark:text-muted-dark">AI</Text>
-            <Text selectable className="text-sm leading-5 text-ink dark:text-ink-dark">
-              {response.text}
-            </Text>
+            <AnalysisMarkdown text={response.text} compact />
             <ToolCallPills key={response.id} calls={response.toolCalls} />
           </ScrollView>
         </View>
