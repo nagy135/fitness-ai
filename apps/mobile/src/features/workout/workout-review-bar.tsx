@@ -25,15 +25,22 @@ export function WorkoutReviewBar({
       {visible && response ? (
         <View className="mb-2 rounded-xl bg-soft px-4 py-3 dark:bg-soft-dark">
           <ScrollView
-            style={{ maxHeight: 120, flexGrow: 0 }}
+            style={{ maxHeight: 240, flexGrow: 0 }}
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
           >
-            <Text className="text-xs font-bold text-muted dark:text-muted-dark">You</Text>
-            <Text selectable className="mb-2 text-sm leading-5 text-ink dark:text-ink-dark">
-              {response.prompt}
-            </Text>
-            <Text className="text-xs font-bold text-muted dark:text-muted-dark">AI</Text>
+            <View className="mb-3 gap-1 border-b border-line pb-3 dark:border-line-dark">
+              <Text className="text-sm font-bold text-accent dark:text-accent-dark">
+                Your message
+              </Text>
+              <Text
+                selectable
+                className="text-base font-bold leading-6 text-ink dark:text-ink-dark"
+              >
+                {response.prompt}
+              </Text>
+            </View>
+            <Text className="mb-1 text-sm font-bold text-muted dark:text-muted-dark">AI reply</Text>
             <AnalysisMarkdown text={response.text} compact />
             <ToolCallPills key={response.id} calls={response.toolCalls} />
           </ScrollView>

@@ -1,6 +1,6 @@
 export const AI_MODELS = [
-  { id: 'openai/gpt-6-luna', name: 'Luna' },
-  { id: 'openai/gpt-6.1-sol', name: 'Sol' },
+  { id: 'openai/gpt-6-luna', name: 'GPT-6 Luna' },
+  { id: 'openai/gpt-6.1-sol', name: 'GPT-6.1 Sol' },
 ] as const;
 
 // Older saved preferences must remain readable while profiles are upgraded.

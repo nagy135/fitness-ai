@@ -10,8 +10,8 @@ import {
 
 it('offers only Sol and Luna and defaults to GPT-6.1 Sol / Low', () => {
   expect(AI_MODELS).toEqual([
-    { id: 'openai/gpt-6-luna', name: 'Luna' },
-    { id: 'openai/gpt-6.1-sol', name: 'Sol' },
+    { id: 'openai/gpt-6-luna', name: 'GPT-6 Luna' },
+    { id: 'openai/gpt-6.1-sol', name: 'GPT-6.1 Sol' },
   ]);
   expect(resolveAISettings()).toEqual({ model: 'openai/gpt-6.1-sol', reasoningEffort: 'low' });
   expect(resolveAISettings()).toEqual(DEFAULT_AI_SETTINGS);

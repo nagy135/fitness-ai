@@ -51,8 +51,8 @@ OPENROUTER_API_KEY=your-key-here
 
 Choose the model and reasoning effort in Settings → AI preferences. Preferences
 are saved per account and apply to logging, analysis, and name suggestions.
-New and existing accounts without saved preferences default to Sol / Low.
-Both model pickers offer only Sol (GPT-6.1 Sol) and Luna (GPT-6 Luna).
+New and existing accounts without saved preferences default to GPT-6.1 Sol / Low.
+Both model pickers offer only GPT-6.1 Sol and GPT-6 Luna, with version numbers in all labels.
 Saved GPT-6 Sol, GPT-6 Astra, and GPT-5.6 Terra/Sol preferences automatically use
 GPT-6.1 Sol on the next request; saved GPT-5.6 Luna preferences use GPT-6 Luna.
 GPT-6.1 Sol requires reasoning; switching to Sol from None selects Low.

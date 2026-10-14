@@ -66,13 +66,13 @@ it('starts collapsed when mounted with an existing reply', async () => {
   expect(shown()).toBe(false);
 });
 
-it('uses compact heights and renders the reply as Markdown alongside the prompt', async () => {
+it('shows the prompt and Markdown reply in the expanded history panel', async () => {
   const response = { id: 'reply', prompt: 'Bench 80 kg for 8', text: '**Logged** `bench`' };
   await render(response);
   await act(() => toggle().props.onPress());
   expect(toggle().props.style.height).toBe(48);
   expect(toggle().props.className).not.toContain('h-full');
-  expect(renderer.root.findByType('ScrollView' as never).props.style.maxHeight).toBe(120);
+  expect(renderer.root.findByType('ScrollView' as never).props.style.maxHeight).toBe(240);
   expect(renderer.root.findByProps({ children: response.prompt })).toBeDefined();
   expect(markdown().props).toMatchObject({ text: response.text, compact: true });
   await act(() => toggle().props.onPress());

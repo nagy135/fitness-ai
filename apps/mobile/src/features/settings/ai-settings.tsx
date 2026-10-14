@@ -133,7 +133,7 @@ export function AISettings() {
             ))}
           </View>
           <Text className="mb-4 mt-3 text-xs text-muted dark:text-muted-dark">
-            Default: Sol · Low
+            Default: GPT-6.1 Sol · Low
           </Text>
           <ErrorNotice message={error} />
           <Button loading={busy} disabled={!changed} onPress={() => void save()}>

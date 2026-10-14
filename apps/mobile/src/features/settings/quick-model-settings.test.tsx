@@ -53,10 +53,10 @@ describe('quick model settings', () => {
   it('loads saved preferences and saves each choice without a save button', async () => {
     profile = { aiSettings: { model: 'openai/gpt-6-luna', reasoningEffort: 'medium' } };
     await mount();
-    expect(find('Model').props.accessibilityValue.text).toBe('Luna');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6 Luna');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('Medium');
     expect(update).not.toHaveBeenCalled();
-    await choose('Model', 'Sol');
+    await choose('Model', 'GPT-6.1 Sol');
     expect(update).toHaveBeenLastCalledWith({
       settings: { model: 'openai/gpt-6.1-sol', reasoningEffort: 'medium' },
     });
@@ -67,7 +67,7 @@ describe('quick model settings', () => {
     expect(find('Reasoning').props.accessibilityState.expanded).toBe(false);
     await act(() => renderer.unmount());
     await mount();
-    expect(find('Model').props.accessibilityValue.text).toBe('Sol');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6.1 Sol');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('High');
   });
 
@@ -84,9 +84,9 @@ describe('quick model settings', () => {
         }),
     );
     await mount();
-    await choose('Model', 'Sol');
+    await choose('Model', 'GPT-6.1 Sol');
     await choose('Reasoning', 'High');
-    expect(find('Model').props.accessibilityValue.text).toBe('Sol');
+    expect(find('Model').props.accessibilityValue.text).toBe('GPT-6.1 Sol');
     expect(find('Reasoning').props.accessibilityValue.text).toBe('High');
     expect(update).toHaveBeenCalledTimes(1);
     await act(() => renderer.root.findByProps({ title: 'AI model' }).props.onRequestClose());
@@ -118,7 +118,7 @@ describe('quick model settings', () => {
         }),
     );
     await mount();
-    await choose('Model', 'Luna');
+    await choose('Model', 'GPT-6 Luna');
     await choose('Reasoning', 'None');
     await act(() => fail(new Error('Offline')));
     expect(profile?.aiSettings).toEqual({ model: 'openai/gpt-6-luna', reasoningEffort: 'none' });
@@ -132,17 +132,20 @@ describe('quick model settings', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it.each(['Sol'])('clamps none reasoning when switching from Luna to %s', async (model) => {
-    profile = { aiSettings: { model: 'openai/gpt-6-luna', reasoningEffort: 'none' } };
-    await mount();
-    await choose('Model', model);
-    expect(update).toHaveBeenCalledWith({
-      settings: {
-        model: 'openai/gpt-6.1-sol',
-        reasoningEffort: 'low',
-      },
-    });
-    await act(() => find('Reasoning').props.onPress());
-    expect(() => find('Reasoning: None')).toThrow();
-  });
+  it.each(['GPT-6.1 Sol'])(
+    'clamps none reasoning when switching from Luna to %s',
+    async (model) => {
+      profile = { aiSettings: { model: 'openai/gpt-6-luna', reasoningEffort: 'none' } };
+      await mount();
+      await choose('Model', model);
+      expect(update).toHaveBeenCalledWith({
+        settings: {
+          model: 'openai/gpt-6.1-sol',
+          reasoningEffort: 'low',
+        },
+      });
+      await act(() => find('Reasoning').props.onPress());
+      expect(() => find('Reasoning: None')).toThrow();
+    },
+  );
 });
