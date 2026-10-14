@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button } from '@fitness/ui';
 import type { WorkoutExchange } from './latest-workout-exchange';
+import { shouldAutoOpenWorkoutHistory } from './workout-history-visibility';
 import { ToolCallPills } from '@/components/tool-call-pills';
 import { AnalysisMarkdown } from '@/components/analysis-markdown';
 
@@ -18,7 +19,14 @@ export function WorkoutReviewBar({
   editing: boolean;
   onReview: () => void;
 }) {
-  const [visible, setVisible] = useState(false);
+  const [previousResponseId, setPreviousResponseId] = useState(response?.id);
+  const [visible, setVisible] = useState(
+    () => !!response && shouldAutoOpenWorkoutHistory(response.toolCalls),
+  );
+  if (previousResponseId !== response?.id) {
+    setPreviousResponseId(response?.id);
+    setVisible(!!response && shouldAutoOpenWorkoutHistory(response.toolCalls));
+  }
 
   return (
     <View className="px-5 pb-2" style={{ flexShrink: 0 }}>

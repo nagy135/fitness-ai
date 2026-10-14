@@ -354,8 +354,12 @@ the backdrop, or the system back action. Tool details remain available after
 reopening a saved analysis or retrieving a completed workout request. Older
 replies without saved tool details continue to show their text and charts.
 Deploy the updated Convex schema and functions to start recording these details.
-The latest workout reply opens automatically and stays visible until you close
-**History**; a new reply opens it again with only its matching prompt and tools.
+The latest workout reply opens **History** automatically when it only reads data
+or uses no tools. Any exercise-changing tool call keeps the new reply collapsed,
+including catalog creation/updates, draft edits, and failed write attempts.
+One write call takes precedence over any number of read calls. Unknown tools also
+keep it collapsed. You can always open or close **History** manually; refreshing
+the same reply preserves your choice.
 
 Manual set adjustment buttons update immediately and accept repeated taps while
 the changes save. Each tap is saved as an increment, so rapid taps accumulate;
