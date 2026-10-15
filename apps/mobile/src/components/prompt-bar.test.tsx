@@ -18,7 +18,7 @@ vi.mock('lucide-react-native', () => ({
   X: 'X',
 }));
 vi.mock('./theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
-vi.mock('./water-ripple-progress', () => ({ WaterRippleProgress: 'WaterRippleProgress' }));
+vi.mock('./dumbbell-progress', () => ({ DumbbellProgress: 'DumbbellProgress' }));
 vi.mock('./display-text', () => ({ DisplayText: 'DisplayText' }));
 vi.mock('./error-notice', () => ({ ErrorNotice: 'ErrorNotice' }));
 vi.mock('@/features/voice/use-dictation', () => ({

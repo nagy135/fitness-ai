@@ -4,7 +4,7 @@ import { ArrowUp, Mic, Square, X } from 'lucide-react-native';
 import { useAppTheme } from './theme-provider';
 import { useDictation } from '@/features/voice/use-dictation';
 import { ErrorNotice } from './error-notice';
-import { WaterRippleProgress } from './water-ripple-progress';
+import { DumbbellProgress } from './dumbbell-progress';
 import { DisplayText } from './display-text';
 import { promptStatus } from './prompt-status';
 import type { QueuedPrompt } from '@/features/home/use-prompt-queue';
@@ -182,7 +182,7 @@ export function PromptBar({
           onPress={() => void submit()}
         >
           {processing ? (
-            <WaterRippleProgress />
+            <DumbbellProgress />
           ) : (
             <ArrowUp color={colors.accentInk} size={22} strokeWidth={2.5} />
           )}
