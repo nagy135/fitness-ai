@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { ChevronDown, ChevronUp, List, Trash2 } from 'lucide-react-native';
+import { Award, ChevronDown, ChevronUp, List, Trash2, Trophy } from 'lucide-react-native';
+import { useQuery } from 'convex/react';
+import { api } from '@fitness/convex/api';
 import { IconButton } from '@fitness/ui';
+import { exerciseRecordImprovements } from '@fitness/domain';
 import type { SetMeasurementField, WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
 import { formatNumber, formatSet } from './history-format';
@@ -49,6 +52,25 @@ export function WorkoutTable({
   onExample: (text: string) => void;
 }) {
   const { colors } = useAppTheme();
+  const exerciseIds = [
+    ...new Set(exercises.flatMap((row) => (row.exerciseId ? [row.exerciseId] : []))),
+  ];
+  const baselines = useQuery(
+    api.analysis.getExerciseRecordBaselines,
+    exerciseIds.length ? { exerciseIds } : 'skip',
+  );
+  const improvements = new Map(
+    baselines?.map((baseline) => [
+      baseline.exerciseId,
+      exerciseRecordImprovements(
+        exercises
+          .filter((row) => row.exerciseId === baseline.exerciseId)
+          .flatMap((row) => row.sets),
+        baseline.trackingType,
+        baseline,
+      ),
+    ]),
+  );
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(() => new Set());
   const [previousExercises, setPreviousExercises] = useState(exercises);
@@ -139,6 +161,9 @@ export function WorkoutTable({
             {exercises.map((exercise) => {
               const exerciseOpen = expandedExercises.has(exercise.rowId);
               const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;
+              const records = exercise.exerciseId
+                ? improvements.get(exercise.exerciseId)
+                : undefined;
               return (
                 <WorkoutChangePulse
                   key={exercise.rowId}
@@ -209,6 +234,37 @@ export function WorkoutTable({
                       </Text>
                     </Pressable>
                   </View>
+                  {records?.volume || records?.maxSet ? (
+                    <View
+                      accessibilityLiveRegion="polite"
+                      className="flex-row flex-wrap gap-2 px-4 pb-3"
+                    >
+                      {records.volume ? (
+                        <View
+                          accessible
+                          accessibilityLabel={`Volume personal record for ${exercise.name}`}
+                          className="flex-row items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-1 dark:bg-accent-dark/15"
+                        >
+                          <Trophy size={14} color={colors.accent} />
+                          <Text className="text-xs font-semibold text-accent dark:text-accent-dark">
+                            Volume PR
+                          </Text>
+                        </View>
+                      ) : null}
+                      {records.maxSet ? (
+                        <View
+                          accessible
+                          accessibilityLabel={`Max set personal record for ${exercise.name}`}
+                          className="flex-row items-center gap-1.5 rounded-full bg-highlight px-2.5 py-1 dark:bg-highlight-dark"
+                        >
+                          <Award size={14} color={colors.highlightInk} />
+                          <Text className="text-xs font-semibold text-highlight-ink dark:text-highlight-ink-dark">
+                            Max set PR
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
                   {exerciseOpen ? (
                     <View className="border-t border-line dark:border-line-dark">
                       {exercise.exerciseId ? (

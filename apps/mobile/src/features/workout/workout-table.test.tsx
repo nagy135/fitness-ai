@@ -1,6 +1,8 @@
 import { createElement, type ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { useQuery } from 'convex/react';
+import type { Id } from '@fitness/convex/data-model';
 import { WorkoutTable } from './workout-table';
 
 const motion = vi.hoisted(() => ({
@@ -29,11 +31,15 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 vi.mock('lucide-react-native', () => ({
+  Award: 'Award',
   ChevronDown: 'ChevronDown',
   ChevronUp: 'ChevronUp',
   List: 'List',
   Trash2: 'Trash2',
+  Trophy: 'Trophy',
 }));
+vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
+vi.mock('./exercise-records', () => ({ ExerciseRecords: 'ExerciseRecords' }));
 vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton' }));
 vi.mock('@/components/theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
 vi.mock('@/components/display-text', () => ({ DisplayText: 'DisplayText' }));
@@ -58,6 +64,7 @@ async function update(next: Exercises, savingSets = false) {
 }
 beforeEach(async () => {
   vi.clearAllMocks();
+  vi.mocked(useQuery).mockReturnValue(undefined);
   motion.reduced.mockResolvedValue(false);
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
@@ -237,4 +244,66 @@ it('accepts five rapid increments while saving without pulsing, scrolling or col
     ),
   );
   expect(motion.start).toHaveBeenCalledTimes(2);
+});
+
+it('updates both exercise badges while logging, including optimistic edits and removals', async () => {
+  const exerciseId = 'bench' as Id<'exercises'>;
+  vi.mocked(useQuery).mockReturnValue([
+    { exerciseId, trackingType: 'weight_reps', volume: 640, maxSet: { weightKg: 80, reps: 8 } },
+  ]);
+  const row = { ...exercises[0], exerciseId };
+  const badges = () => ({
+    volume: renderer.root.findAllByProps({ accessibilityLabel: 'Volume personal record for Bench' })
+      .length,
+    maxSet: renderer.root.findAllByProps({
+      accessibilityLabel: 'Max set personal record for Bench',
+    }).length,
+  });
+  await update([row], true);
+  expect(useQuery).toHaveBeenLastCalledWith(expect.anything(), { exerciseIds: [exerciseId] });
+  expect(badges()).toEqual({ volume: 0, maxSet: 0 });
+  expect(isOpen('Bench, 1 set')).toBe(false);
+
+  await update([{ ...row, sets: [{ ...row.sets[0], reps: 9 }] }], true);
+  expect(badges()).toEqual({ volume: 1, maxSet: 1 });
+  expect(isOpen('Bench, 1 set')).toBe(false);
+
+  await update([{ ...row, sets: [{ ...row.sets[0], weightKg: 81, reps: 1 }] }], true);
+  expect(badges()).toEqual({ volume: 0, maxSet: 1 });
+
+  await update(
+    [
+      {
+        ...row,
+        sets: [
+          { setId: 'first', weightKg: 70, reps: 5 },
+          { setId: 'second', weightKg: 70, reps: 5 },
+        ],
+      },
+    ],
+    true,
+  );
+  expect(badges()).toEqual({ volume: 1, maxSet: 0 });
+
+  await update([{ ...row, sets: [] }], true);
+  expect(badges()).toEqual({ volume: 0, maxSet: 0 });
+});
+
+it('waits for saved baselines and combines duplicate rows for the same exercise', async () => {
+  const exerciseId = 'bench' as Id<'exercises'>;
+  const rows = exercises.map((row) => ({ ...row, exerciseId }));
+  await update(rows, true);
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('Volume PR');
+  vi.mocked(useQuery).mockReturnValue([
+    { exerciseId, trackingType: 'weight_reps', volume: 1000, maxSet: { weightKg: 100, reps: 5 } },
+  ]);
+  await update(rows, true);
+  expect(useQuery).toHaveBeenLastCalledWith(expect.anything(), { exerciseIds: [exerciseId] });
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: 'Volume personal record for Bench' }),
+  ).toHaveLength(1);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: 'Volume personal record for Squat' }),
+  ).toHaveLength(1);
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('Max set PR');
 });

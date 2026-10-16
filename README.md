@@ -497,6 +497,19 @@ nix develop -c pnpm expo-doctor apps/mobile
 
 The critical device flow is documented in `maestro/register-and-log-workout.yaml` and expects a running backend plus an OpenRouter model that supports tool calling.
 
+## Live exercise records
+
+Exercise cards show **Volume PR** when the current exercise's total weight × reps
+beats its best saved workout, and **Max set PR** for a heavier set or more reps
+at the same highest weight. Both badges can appear before saving, stay visible
+when the exercise is collapsed, and recalculate after set edits or removals.
+All rows linked to the same catalog exercise count toward its workout volume.
+Comparisons use all confirmed history, excluding the workout being edited.
+Ties and first sessions receive no badge. These records require both weight and
+reps after tracking-type normalization; timed and reps-only exercises do not
+receive strength badges. Deploy Convex functions alongside the updated app so
+the `analysis.getExerciseRecordBaselines` query is available.
+
 ## Architecture and safety boundaries
 
 - Every user-scoped Convex function resolves the Better Auth identity on the server. Clients and AI tools never provide a `userId`.

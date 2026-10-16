@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import {
   calculateVolume,
   summarizeExerciseRecords,
+  summarizeExerciseRecordBaseline,
   estimate1RM,
   groupWorkoutsByMonth,
   groupWorkoutsByWeek,
@@ -285,5 +286,37 @@ export const getExerciseRecords = query({
           ).previous
         : records.previous,
     };
+  },
+});
+
+// One history read for all visible exercises, including records outside recent history.
+export const getExerciseRecordBaselines = query({
+  args: { exerciseIds: v.array(v.id('exercises')) },
+  handler: async (ctx, { exerciseIds }) => {
+    const user = await requireUserProfile(ctx);
+    const exercises = await Promise.all(
+      [...new Set(exerciseIds)].map((exerciseId) =>
+        requireOwnedExercise(ctx, exerciseId, user._id),
+      ),
+    );
+    if (!exercises.length) return [];
+    const draft = await currentForUser(ctx, user._id);
+    const workouts = (await workoutsInRange(ctx, user._id)).filter(
+      (workout) => workout._id !== draft?.editingWorkoutId,
+    );
+    return exercises.map((exercise) => ({
+      exerciseId: exercise._id,
+      trackingType: exercise.trackingType,
+      ...summarizeExerciseRecordBaseline(
+        workouts.map((workout) => ({
+          workoutId: workout._id,
+          performedAt: workout.performedAt,
+          sets: workout.exercises
+            .filter((row) => row.exerciseId === exercise._id)
+            .flatMap((row) => row.sets),
+        })),
+        exercise.trackingType,
+      ),
+    }));
   },
 });
