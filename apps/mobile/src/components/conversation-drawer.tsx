@@ -100,7 +100,11 @@ export function ConversationDrawer({
               const fromUser = message.role === 'user';
               return (
                 <View className={fromUser ? 'items-end' : 'items-start'} key={message._id}>
-                  {!fromUser ? <ToolCallPills calls={message.toolCalls} layout="bubbles" /> : null}
+                  {!fromUser && message.toolCalls?.length ? (
+                    <View className="mb-2 w-[94%]">
+                      <ToolCallPills calls={message.toolCalls} />
+                    </View>
+                  ) : null}
                   <View
                     className={
                       fromUser

@@ -33,7 +33,7 @@ afterEach(async () => {
 });
 
 it.each(['workout', 'analysis'] as const)(
-  'places tool bubbles between the matching question and answer in %s',
+  'uses the shared compact tool pills between the matching question and answer in %s',
   async (mode) => {
     const toolCalls = [
       { toolCallId: 'lookup', toolName: 'getExerciseHistory', input: '{}', output: '[]' },
@@ -61,7 +61,8 @@ it.each(['workout', 'analysis'] as const)(
       rendered.indexOf('getExerciseHistory'),
     );
     expect(rendered.indexOf('getExerciseHistory')).toBeLessThan(rendered.indexOf('Latest answer'));
-    expect(renderer.root.findByProps({ calls: toolCalls }).props.layout).toBe('bubbles');
+    expect(renderer.root.findAllByType('ToolCallPills' as never)).toHaveLength(1);
+    expect(renderer.root.findByType('ToolCallPills' as never).props).toEqual({ calls: toolCalls });
     await act(() =>
       renderer.root.findByProps({ accessibilityLabel: 'Close conversation' }).props.onPress(),
     );

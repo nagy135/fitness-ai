@@ -349,8 +349,9 @@ the back arrow, or use Android Back to return. The panel shows the selected
 analysis session or current workout draft, with earlier messages available through
 **Load earlier messages**. Workout history edits have their own conversation;
 starting a fresh workout does not show messages from previous workouts. Each
-reply's tool calls appear as separate tappable bubbles before its answer, in
-execution order, with the full input and result or error available in a dialog.
+reply's tool calls appear as small inline pills before its answer, in execution
+order, using the same compact controls as History and the latest reply. Tap a
+pill for its full input and result or error in a dialog.
 Deploy the `aiMessages.workoutConversation` query alongside the new APK.
 The latest session is restored when the app opens. **Earlier analysis messages** keeps
 conversations from before sessions were introduced accessible. Deploy the updated
