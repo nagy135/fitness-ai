@@ -9,12 +9,21 @@ const mocks = vi.hoisted(() => ({
   dismiss: vi.fn(),
   remove: vi.fn(),
   back: vi.fn(),
+  focused: true,
 }));
 vi.mock('react-native', () => ({
   Keyboard: { dismiss: mocks.dismiss },
   BackHandler: { addEventListener: mocks.back },
 }));
 vi.mock('react-native-gesture-handler', () => ({ GestureHandlerRootView: 'Root' }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return {
+    useFocusEffect: function useMockFocusEffect(effect: () => void | (() => void)) {
+      useEffect(() => (mocks.focused ? effect() : undefined), [effect, mocks.focused]);
+    },
+  };
+});
 vi.mock('react-native-gesture-handler/ReanimatedDrawerLayout', async () => {
   const { createElement, useImperativeHandle } = await import('react');
   return {
@@ -35,6 +44,7 @@ let renderer: ReactTestRenderer;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.clearAllMocks();
+  mocks.focused = true;
   mocks.back.mockReturnValue({ remove: mocks.remove });
 });
 afterEach(async () => {
@@ -115,4 +125,20 @@ it('sizes and clips the swipe to its own content bounds, including a resize whil
   await layout(288);
   expect(drawer().props.drawerWidth).toBe(288);
   expect(mocks.open).toHaveBeenCalledTimes(2);
+});
+
+it('releases Android Back while another screen is open and restores it on return', async () => {
+  const props = { open: true, onOpenChange: vi.fn(), panel: null };
+  await act(() => {
+    renderer = create(createElement(SwipeableConversation, props));
+  });
+  await layout();
+  expect(mocks.back).toHaveBeenCalledOnce();
+  mocks.focused = false;
+  await act(() => renderer.update(createElement(SwipeableConversation, props)));
+  expect(mocks.remove).toHaveBeenCalledOnce();
+  expect(mocks.back).toHaveBeenCalledOnce();
+  mocks.focused = true;
+  await act(() => renderer.update(createElement(SwipeableConversation, props)));
+  expect(mocks.back).toHaveBeenCalledTimes(2);
 });

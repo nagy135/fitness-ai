@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react';
 import { BackHandler, Keyboard } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedDrawerLayout, {
   DrawerKeyboardDismissMode,
@@ -39,14 +47,16 @@ export function SwipeableConversation({
     }
   }, [open, width]);
 
-  useEffect(() => {
-    if (!open) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onOpenChange(false);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [onOpenChange, open]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!open) return;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        onOpenChange(false);
+        return true;
+      });
+      return () => subscription.remove();
+    }, [onOpenChange, open]),
+  );
 
   return (
     <GestureHandlerRootView
