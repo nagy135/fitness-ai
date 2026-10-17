@@ -343,9 +343,11 @@ Analysis sessions save automatically to your account, including prompts, answers
 and charts. In Analysis mode, use the history icon to reopen or rename a session,
 or the **+** button to start another without deleting earlier results. The main
 screen shows the latest question and its answer; open Conversation for earlier interactions.
-In either mode, swipe left anywhere on the main screen to reveal a full-width
-Conversation panel on the right, or tap the conversation icon. Swipe right, tap
-the back arrow, or use Android Back to return. The panel shows the selected
+In either mode, swipe left in the content area to reveal the Conversation panel
+on the right, or tap the conversation icon. The header, mode switch, and bottom
+prompt bar stay fixed; you can keep sending messages or switch modes while the
+conversation is open. Swipe right, tap the back arrow or conversation icon, or
+use Android Back to return. The panel shows the selected
 analysis session or current workout draft, with earlier messages available through
 **Load earlier messages**. Workout history edits have their own conversation;
 starting a fresh workout does not show messages from previous workouts. Each

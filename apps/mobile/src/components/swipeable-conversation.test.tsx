@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('react-native', () => ({
   Keyboard: { dismiss: mocks.dismiss },
   BackHandler: { addEventListener: mocks.back },
-  useWindowDimensions: () => ({ width: 390, height: 844 }),
 }));
 vi.mock('react-native-gesture-handler', () => ({ GestureHandlerRootView: 'Root' }));
 vi.mock('react-native-gesture-handler/ReanimatedDrawerLayout', async () => {
@@ -43,12 +42,21 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('opens the full right-hand page from the button and consumes Android back to close it', async () => {
+async function layout(width = 390) {
+  await act(() =>
+    renderer.root.findByType('Root' as never).props.onLayout({
+      nativeEvent: { layout: { width } },
+    }),
+  );
+}
+
+it('opens the right-hand content page from the button and consumes Android back to close it', async () => {
   const change = vi.fn();
   const props = { open: false, onOpenChange: change, panel: null };
   await act(() => {
     renderer = create(createElement(SwipeableConversation, props));
   });
+  await layout();
   expect(renderer.root.findByType('DrawerLayout' as never).props).toMatchObject({
     drawerPosition: 'right',
     drawerType: 'slide',
@@ -76,6 +84,7 @@ it('loads the panel during a swipe without interrupting the gesture and restores
   await act(() => {
     renderer = create(createElement(Harness));
   });
+  await layout();
   const drawer = () => renderer.root.findByType('DrawerLayout' as never);
   await act(() => drawer().props.onDrawerStateChanged('dragging', true));
   expect(mocks.back).toHaveBeenCalledOnce();
@@ -85,4 +94,25 @@ it('loads the panel during a swipe without interrupting the gesture and restores
     drawer().props.onDrawerClose();
   });
   expect(mocks.remove).toHaveBeenCalledOnce();
+});
+
+it('sizes and clips the swipe to its own content bounds, including a resize while open', async () => {
+  await act(() => {
+    renderer = create(
+      createElement(SwipeableConversation, {
+        open: true,
+        onOpenChange: vi.fn(),
+        panel: null,
+      }),
+    );
+  });
+  expect(mocks.open).not.toHaveBeenCalled();
+  await layout(320);
+  const drawer = () => renderer.root.findByType('DrawerLayout' as never);
+  expect(drawer().props.drawerWidth).toBe(320);
+  expect(drawer().props.edgeWidth).toBe(320);
+  expect(renderer.root.findByType('Root' as never).props.style.overflow).toBe('hidden');
+  await layout(288);
+  expect(drawer().props.drawerWidth).toBe(288);
+  expect(mocks.open).toHaveBeenCalledTimes(2);
 });

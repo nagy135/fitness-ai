@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { ArrowLeft, MessageSquareText } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, IconButton, type FitnessMode } from '@fitness/ui';
 import type { AnalysisChart, ToolCallRecord } from '@fitness/ai';
 import { useAppTheme } from './theme-provider';
@@ -35,7 +34,6 @@ export function ConversationDrawer({
   loadingOlder?: boolean;
 }) {
   const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const lastScrolledMessage = useRef<string | undefined>(undefined);
   const chronologicalMessages = [...(messages ?? [])].reverse();
@@ -51,20 +49,14 @@ export function ConversationDrawer({
       className="flex-1 bg-canvas dark:bg-canvas-dark"
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
-      style={{
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
-      }}
     >
       <View className="mx-auto w-full max-w-3xl flex-1 px-5">
-        <View className="min-h-[88px] flex-row items-center gap-3 py-3">
+        <View className="min-h-16 flex-row items-center gap-3 py-2">
           <IconButton accessibilityLabel="Close conversation" onPress={onClose}>
             <ArrowLeft color={colors.text} size={22} />
           </IconButton>
           <View className="flex-1">
-            <DisplayText accessibilityRole="header" className="text-[32px] leading-10">
+            <DisplayText accessibilityRole="header" className="text-[26px] leading-8">
               Conversation
             </DisplayText>
             <Text className="text-xs text-muted dark:text-muted-dark">

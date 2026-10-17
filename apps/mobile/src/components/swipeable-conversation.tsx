@@ -1,5 +1,5 @@
-import { useEffect, useRef, type PropsWithChildren, type ReactNode } from 'react';
-import { BackHandler, Keyboard, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { BackHandler, Keyboard } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedDrawerLayout, {
   DrawerKeyboardDismissMode,
@@ -11,7 +11,7 @@ import ReanimatedDrawerLayout, {
 } from 'react-native-gesture-handler/ReanimatedDrawerLayout';
 import { useAppTheme } from './theme-provider';
 
-/** A second, full-width page attached to the right of either chat mode. */
+/** Slides only the content area, leaving the screen header and composer fixed. */
 export function SwipeableConversation({
   children,
   panel,
@@ -26,18 +26,18 @@ export function SwipeableConversation({
 }>) {
   const drawer = useRef<DrawerLayoutMethods>(null);
   const dragging = useRef(false);
-  const { width } = useWindowDimensions();
+  const [width, setWidth] = useState(0);
   const { colors } = useAppTheme();
 
   useEffect(() => {
-    if (dragging.current) return;
+    if (!width || dragging.current) return;
     if (open) {
       Keyboard.dismiss();
       drawer.current?.openDrawer();
     } else {
       drawer.current?.closeDrawer();
     }
-  }, [open]);
+  }, [open, width]);
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +49,10 @@ export function SwipeableConversation({
   }, [onOpenChange, open]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{ flex: 1, overflow: 'hidden' }}
+      onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
+    >
       <ReanimatedDrawerLayout
         ref={drawer}
         drawerPosition={DrawerPosition.RIGHT}
