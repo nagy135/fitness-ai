@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { ArrowLeft, MessageSquareText } from 'lucide-react-native';
 import { Button, IconButton, type FitnessMode } from '@fitness/ui';
@@ -88,47 +88,9 @@ export function ConversationDrawer({
                 Load earlier messages
               </Button>
             ) : null}
-            {chronologicalMessages.map((message) => {
-              const fromUser = message.role === 'user';
-              return (
-                <View className={fromUser ? 'items-end' : 'items-start'} key={message._id}>
-                  {!fromUser && message.toolCalls?.length ? (
-                    <View className="mb-2 w-[94%]">
-                      <ToolCallPills calls={message.toolCalls} />
-                    </View>
-                  ) : null}
-                  <View
-                    className={
-                      fromUser
-                        ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
-                        : 'w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
-                    }
-                  >
-                    {!fromUser ? (
-                      <AnalysisMarkdown text={message.text} compact />
-                    ) : (
-                      <Text
-                        selectable
-                        className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
-                      >
-                        {message.text}
-                      </Text>
-                    )}
-                    {!fromUser && message.chart ? (
-                      <ProgressChart chart={message.chart} compact />
-                    ) : null}
-                  </View>
-                  <Text className="mt-1 px-1 text-[11px] text-muted dark:text-muted-dark">
-                    {new Date(message.createdAt).toLocaleString([], {
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      month: 'short',
-                    })}
-                  </Text>
-                </View>
-              );
-            })}
+            {chronologicalMessages.map((message) => (
+              <ConversationMessageBubble key={message._id} message={message} />
+            ))}
           </ScrollView>
         ) : (
           <View className="flex-1 items-center justify-center px-5">
@@ -147,3 +109,48 @@ export function ConversationDrawer({
     </View>
   );
 }
+
+// The slide changes visibility, not the message. Keep existing rows untouched.
+const ConversationMessageBubble = memo(function ConversationMessageBubble({
+  message,
+}: {
+  message: ConversationMessage;
+}) {
+  const fromUser = message.role === 'user';
+  return (
+    <View className={fromUser ? 'items-end' : 'items-start'}>
+      {!fromUser && message.toolCalls?.length ? (
+        <View className="mb-2 w-[94%]">
+          <ToolCallPills calls={message.toolCalls} />
+        </View>
+      ) : null}
+      <View
+        className={
+          fromUser
+            ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
+            : 'w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
+        }
+      >
+        {!fromUser ? (
+          <AnalysisMarkdown text={message.text} compact />
+        ) : (
+          <Text
+            selectable
+            className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
+          >
+            {message.text}
+          </Text>
+        )}
+        {!fromUser && message.chart ? <ProgressChart chart={message.chart} compact /> : null}
+      </View>
+      <Text className="mt-1 px-1 text-[11px] text-muted dark:text-muted-dark">
+        {new Date(message.createdAt).toLocaleString([], {
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          month: 'short',
+        })}
+      </Text>
+    </View>
+  );
+});

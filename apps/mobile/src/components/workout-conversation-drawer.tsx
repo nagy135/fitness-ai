@@ -14,7 +14,8 @@ export function WorkoutConversationDrawer({
 }) {
   const { results, status, loadMore } = usePaginatedQuery(
     api.aiMessages.workoutConversation,
-    visible ? { draftId } : 'skip',
+    // Keep the current draft warm offscreen, including any earlier pages.
+    { draftId },
     { initialNumItems: 20 },
   );
   return (

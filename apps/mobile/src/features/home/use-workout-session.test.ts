@@ -51,7 +51,7 @@ vi.mock('convex/react', () => ({
 let session: ReturnType<typeof useWorkoutSession>;
 let renderer: ReactTestRenderer;
 function Harness({ mode = 'analysis' }: { mode?: 'workout' | 'analysis' }) {
-  const current = useWorkoutSession(mode, false, false);
+  const current = useWorkoutSession(mode, false);
   useEffect(() => {
     session = current;
   });

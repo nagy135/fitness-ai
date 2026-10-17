@@ -354,6 +354,11 @@ starting a fresh workout does not show messages from previous workouts. Each
 reply's tool calls appear as small inline pills before its answer, in execution
 order, using the same compact controls as History and the latest reply. Tap a
 pill for its full input and result or error in a dialog.
+The selected conversation stays subscribed and mounted while offscreen, keeping
+its loaded pages and rendered Markdown in memory between swipes. New messages
+still arrive live; unchanged answers skip redundant DOM updates. Selecting a
+different session or workout draft replaces this cache. Unmounting the home
+screen or signing out releases it. A newly selected chat can still have an initial load.
 Deploy the `aiMessages.workoutConversation` query alongside the new APK.
 The latest session is restored when the app opens. **Earlier analysis messages** keeps
 conversations from before sessions were introduced accessible. Deploy the updated

@@ -16,7 +16,9 @@ export function AnalysisConversationDrawer({
 }) {
   const { results, status, loadMore } = usePaginatedQuery(
     api.aiMessages.analysisConversation,
-    visible && (sessionId || legacy) ? { sessionId } : 'skip',
+    // Visibility controls the slide/accessibility only. Keep the selected chat
+    // subscribed so closing it preserves its pages and mounted Markdown views.
+    sessionId || legacy ? { sessionId } : 'skip',
     { initialNumItems: 20 },
   );
   return (

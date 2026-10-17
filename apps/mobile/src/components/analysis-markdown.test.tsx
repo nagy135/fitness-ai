@@ -36,3 +36,19 @@ it('leaves vertical drags to the native parent in both the analysis and expanded
     nestedScrollEnabled: false,
   });
 });
+
+it('keeps the native DOM props stable across parent rerenders and still updates changed answers', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  await act(() => {
+    renderer = create(createElement(AnalysisMarkdown, { text: 'Saved answer' }));
+  });
+  const view = renderer.root.findByType('AnalysisMarkdownDOM' as never);
+  const dom = view.props.dom;
+  for (let update = 0; update < 5; update++) {
+    await act(() => renderer.update(createElement(AnalysisMarkdown, { text: 'Saved answer' })));
+    expect(view.props.dom).toBe(dom);
+  }
+  await act(() => renderer.update(createElement(AnalysisMarkdown, { text: 'Updated answer' })));
+  expect(renderer.root.findByType('AnalysisMarkdownDOM' as never)).toBe(view);
+  expect(view.props.text).toBe('Updated answer');
+});

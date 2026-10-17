@@ -17,11 +17,7 @@ type Response = {
   draftId?: string;
   sessionId?: Id<'analysisSessions'>;
 };
-export function useWorkoutSession(
-  mode: FitnessMode,
-  conversationOpen: boolean,
-  historyOpen: boolean,
-) {
+export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
   const { isAuthenticated } = useConvexAuth();
   const [attempt, setAttempt] = useState(0);
   const [ready, setReady] = useState(false);
@@ -63,11 +59,10 @@ export function useWorkoutSession(
   const workoutAI = useAction(api.ai.workout.respond);
   const analysisAI = useAction(api.ai.analysis.respond);
   const draft = useQuery(api.workoutDrafts.current, ready && isAuthenticated ? {} : 'skip');
+  // The reply strip uses a stable query; the conversation has its own pages.
   const messages = useQuery(
     api.aiMessages.recent,
-    ready && isAuthenticated && mode === 'workout'
-      ? { mode, limit: conversationOpen ? 50 : 10 }
-      : 'skip',
+    ready && isAuthenticated && mode === 'workout' ? { mode, limit: 10 } : 'skip',
   );
   const workouts = useQuery(
     api.workouts.recent,

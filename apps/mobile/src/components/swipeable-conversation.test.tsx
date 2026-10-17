@@ -20,7 +20,8 @@ vi.mock('expo-router', async () => {
   const { useEffect } = await import('react');
   return {
     useFocusEffect: function useMockFocusEffect(effect: () => void | (() => void)) {
-      useEffect(() => (mocks.focused ? effect() : undefined), [effect, mocks.focused]);
+      const focused = mocks.focused;
+      useEffect(() => (focused ? effect() : undefined), [effect, focused]);
     },
   };
 });

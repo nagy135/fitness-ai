@@ -33,7 +33,7 @@ export default function HomeScreen() {
   const [analysisReset, setAnalysisReset] = useState(0);
   const [prompts, setPrompts] = useState({ workout: '', analysis: '' });
   const { colors } = useAppTheme();
-  const session = useWorkoutSession(mode, conversationOpen, historyOpen);
+  const session = useWorkoutSession(mode, historyOpen);
   const queue = usePromptQueue(
     session.submitPrompt,
     session.busy || session.savingSets || (mode === 'analysis' && session.analysisLoading),

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useAppTheme } from './theme-provider';
@@ -6,7 +6,15 @@ import { Drawer } from './drawer';
 import AnalysisMarkdownDOM from './analysis-markdown-dom';
 import { isWebLink } from './markdown-links';
 
-export function AnalysisMarkdown({ text, compact = false }: { text: string; compact?: boolean }) {
+// The native DOM view is expensive. Swipes and composer edits should not send
+// another prop update across the bridge when this answer has not changed.
+export const AnalysisMarkdown = memo(function AnalysisMarkdown({
+  text,
+  compact = false,
+}: {
+  text: string;
+  compact?: boolean;
+}) {
   const { colors, isDark } = useAppTheme();
   const [expandedDiagram, setExpandedDiagram] = useState<string>();
 
@@ -61,4 +69,4 @@ export function AnalysisMarkdown({ text, compact = false }: { text: string; comp
       ) : null}
     </View>
   );
-}
+});
