@@ -6,6 +6,7 @@ import {
   acknowledgeWorkoutRequest,
   beginWorkoutRequest,
   recent,
+  workoutConversation,
   workoutContext,
   finishWorkoutRequest,
   prepareWorkoutRequest,
@@ -51,6 +52,16 @@ const context = handler<
   { requestId: Id<'workoutRequests'> },
   { role: 'user' | 'assistant'; content: string }[]
 >(workoutContext);
+type ConversationMessage = {
+  _id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  toolCalls?: ToolCallRecord[];
+};
+const conversation = handler<
+  { draftId: Id<'workoutDrafts'>; paginationOpts: { numItems: number; cursor: string | null } },
+  { page: ConversationMessage[]; isDone: boolean; continueCursor: string }
+>(workoutConversation);
 const add = handler<
   {
     exercises: { exerciseId: Id<'exercises'>; sets: { reps: number }[] }[];
@@ -141,6 +152,23 @@ beforeEach(() => {
                 (Number(a[sortField]) - Number(b[sortField])) * (direction === 'asc' ? 1 : -1),
             );
             return query;
+          },
+          filter: (build: (q: unknown) => (row: Row) => boolean) => {
+            selected = selected.filter(
+              build({
+                field: (name: string) => name,
+                neq: (name: string, value: unknown) => (row: Row) => row[name] !== value,
+              }),
+            );
+            return query;
+          },
+          paginate: async ({ numItems, cursor }: { numItems: number; cursor: string | null }) => {
+            const offset = Number(cursor ?? 0);
+            return {
+              page: selected.slice(offset, offset + numItems),
+              isDone: offset + numItems >= selected.length,
+              continueCursor: String(offset + numItems),
+            };
           },
           collect: async () => selected,
           unique: async () => selected[0] ?? null,
@@ -499,6 +527,91 @@ describe('workout model conversation context', () => {
 });
 
 describe('conversation drawer history', () => {
+  it('pages the full current draft conversation with tools, including old receipts and failures', async () => {
+    const toolCalls = [
+      { toolCallId: 'lookup', toolName: 'getExerciseHistory', input: '{}', output: '[]' },
+    ];
+    for (let i = 0; i < 60; i++) {
+      rows.push({
+        _id: `request-${i}`,
+        _creationTime: i,
+        table: 'workoutRequests',
+        userId,
+        draftId,
+        prompt: `Question ${i}`,
+        text: `Answer ${i}`,
+        status: i === 59 ? 'failed' : 'completed',
+        createdAt: i,
+        toolCalls,
+      });
+    }
+    rows.push(
+      {
+        _id: 'other-workout',
+        _creationTime: 100,
+        table: 'workoutRequests',
+        userId,
+        draftId: 'other-draft',
+        status: 'completed',
+        prompt: 'Other workout',
+      },
+      {
+        _id: 'foreign',
+        _creationTime: 101,
+        table: 'workoutRequests',
+        userId: 'other-user',
+        draftId,
+        status: 'completed',
+        prompt: 'Secret',
+      },
+      {
+        _id: 'queued',
+        _creationTime: 102,
+        table: 'workoutRequests',
+        userId,
+        draftId,
+        status: 'queued',
+        prompt: 'Not sent',
+      },
+      {
+        _id: 'running',
+        _creationTime: 103,
+        table: 'workoutRequests',
+        userId,
+        draftId,
+        status: 'running',
+        prompt: 'Waiting',
+        createdAt: 103,
+      },
+    );
+    const messages: ConversationMessage[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 4; page++) {
+      const result = await conversation(ctx, { draftId, paginationOpts: { numItems: 20, cursor } });
+      messages.push(...result.page);
+      cursor = result.continueCursor;
+      if (result.isDone) break;
+    }
+    expect(messages).toHaveLength(121);
+    expect(messages[0]).toMatchObject({ role: 'user', text: 'Waiting' });
+    expect(messages[1]).toMatchObject({ role: 'assistant', text: 'Answer 59', toolCalls });
+    expect(messages[2]).toMatchObject({ role: 'user', text: 'Question 59' });
+    expect(messages.at(-1)).toMatchObject({ role: 'user', text: 'Question 0' });
+    expect(new Set(messages.map((message) => message._id)).size).toBe(121);
+  });
+
+  it('starts empty for a fresh draft and rejects missing, foreign and unauthenticated drafts', async () => {
+    const args = { draftId, paginationOpts: { numItems: 20, cursor: null } };
+    expect((await conversation(ctx, args)).page).toEqual([]);
+    await expect(
+      conversation(ctx, { ...args, draftId: 'missing' as Id<'workoutDrafts'> }),
+    ).rejects.toThrow('Workout draft not found');
+    rows[0].userId = 'other-user';
+    await expect(conversation(ctx, args)).rejects.toThrow('Workout draft not found');
+    vi.mocked(requireUserProfile).mockRejectedValue(new Error('Unauthenticated'));
+    await expect(conversation(ctx, args)).rejects.toThrow('Unauthenticated');
+  });
+
   it('keeps a bounded display history with user and mode isolation', async () => {
     for (let i = 60; i >= 0; i--)
       rows.push({

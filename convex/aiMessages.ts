@@ -186,6 +186,45 @@ export const recent = query({
   },
 });
 
+// Receipts scope old and new exchanges to their original draft. Paginating the
+// receipts keeps each question/reply together and removes the display's old cap.
+export const workoutConversation = query({
+  args: { draftId: v.id('workoutDrafts'), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const user = await requireUserProfile(ctx);
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft || draft.userId !== user._id) throw new Error('Workout draft not found');
+    const result = await ctx.db
+      .query('workoutRequests')
+      .withIndex('by_user_draft', (q) => q.eq('userId', user._id).eq('draftId', draft._id))
+      .filter((q) => q.neq(q.field('status'), 'queued'))
+      .order('desc')
+      .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: result.page.flatMap((request) => [
+        ...(request.text === undefined
+          ? []
+          : [
+              {
+                _id: `${request._id}-assistant`,
+                role: 'assistant' as const,
+                text: request.text,
+                toolCalls: request.toolCalls,
+                createdAt: request.createdAt,
+              },
+            ]),
+        {
+          _id: `${request._id}-user`,
+          role: 'user' as const,
+          text: request.prompt,
+          createdAt: request.createdAt,
+        },
+      ]),
+    };
+  },
+});
+
 // Receipts already link every workout exchange to its draft, including exchanges
 // saved before conversation context was enabled. UI history limits do not apply.
 export const workoutContext = query({

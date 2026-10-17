@@ -5,7 +5,8 @@ import { BrainCircuit, History, MessageSquareText, Settings, Plus } from 'lucide
 import { Button, IconButton, ModeSwitch, type FitnessMode } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PromptBar } from '@/components/prompt-bar';
-import { ConversationDrawer } from '@/components/conversation-drawer';
+import { WorkoutConversationDrawer } from '@/components/workout-conversation-drawer';
+import { SwipeableConversation } from '@/components/swipeable-conversation';
 import { AnalysisConversationDrawer } from '@/components/analysis-conversation-drawer';
 import { AnalysisMarkdown } from '@/components/analysis-markdown';
 import { ToolCallPills } from '@/components/tool-call-pills';
@@ -67,204 +68,216 @@ export default function HomeScreen() {
     }
     router.setParams({ mode: next });
   }
+  function openConversation() {
+    setLegacyConversation(false);
+    setConversationOpen(true);
+  }
   return (
-    <Screen
-      headerActions={
-        <>
-          <IconButton
-            accessibilityLabel={
-              mode === 'analysis' ? 'Open analysis history' : 'Open workout history'
-            }
-            disabled={busy}
-            onPress={() =>
-              mode === 'analysis' ? setAnalysisHistoryOpen(true) : setHistoryOpen(true)
-            }
-          >
-            <History color={colors.text} size={20} strokeWidth={2} />
-          </IconButton>
-          <IconButton
-            accessibilityLabel="Open conversation"
-            onPress={() => {
-              setLegacyConversation(false);
-              setConversationOpen(true);
-            }}
-          >
-            <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
-          </IconButton>
-          <IconButton
-            accessibilityLabel="Open model settings"
-            onPress={() => setModelSettingsOpen(true)}
-          >
-            <BrainCircuit color={colors.text} size={20} strokeWidth={2} />
-          </IconButton>
-          <IconButton
-            accessibilityLabel="Open settings"
-            disabled={busy}
-            onPress={() => router.push('/settings/account')}
-          >
-            <Settings color={colors.text} size={20} strokeWidth={2} />
-          </IconButton>
-          {mode === 'analysis' ? (
-            <IconButton
-              accessibilityLabel="Start new analysis"
-              disabled={busy || session.analysisLoading}
-              onPress={newAnalysis}
-            >
-              <Plus color={colors.text} size={20} strokeWidth={2} />
-            </IconButton>
-          ) : null}
-        </>
+    <SwipeableConversation
+      open={conversationOpen}
+      enabled={!historyOpen && !analysisHistoryOpen && !modelSettingsOpen}
+      onOpenChange={(open) => {
+        if (open && !conversationOpen) openConversation();
+        else setConversationOpen(open);
+      }}
+      panel={
+        mode === 'analysis' ? (
+          <AnalysisConversationDrawer
+            key={legacyConversation ? 'legacy' : (session.analysisId ?? 'new')}
+            sessionId={legacyConversation ? undefined : session.analysisId}
+            legacy={legacyConversation}
+            onClose={() => setConversationOpen(false)}
+            visible={conversationOpen}
+          />
+        ) : session.draft ? (
+          <WorkoutConversationDrawer
+            key={session.draft._id}
+            draftId={session.draft._id}
+            onClose={() => setConversationOpen(false)}
+            visible={conversationOpen}
+          />
+        ) : null
       }
     >
-      <View className="px-5 pb-2">
-        <ModeSwitch mode={mode} onChange={changeMode} disabled={busy} />
-        {session.draft?.editingWorkoutId ? (
-          <View className="mt-3 gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark">
-            <Text className="font-bold text-ink dark:text-ink-dark">
-              Editing saved workout ·{' '}
-              {session.draft.performedAt !== undefined
-                ? new Date(session.draft.performedAt).toLocaleDateString()
-                : session.draft.date}
-            </Text>
-            <Text className="text-sm text-muted dark:text-muted-dark">
-              Review and save your changes when you’re done.
-            </Text>
-            <Button
-              variant="ghost"
+      <Screen
+        headerActions={
+          <>
+            <IconButton
+              accessibilityLabel={
+                mode === 'analysis' ? 'Open analysis history' : 'Open workout history'
+              }
               disabled={busy}
-              onPress={() => void session.cancelHistoryEdit()}
+              onPress={() =>
+                mode === 'analysis' ? setAnalysisHistoryOpen(true) : setHistoryOpen(true)
+              }
             >
-              Cancel changes
-            </Button>
-          </View>
-        ) : null}
-      </View>
-      {mode === 'workout' ? (
-        <WorkoutTable
-          key={`table-${session.draft?._id}`}
-          exercises={exercises}
-          busy={session.busy || queue.hasWork}
-          savingSets={session.savingSets}
-          onRemoveSet={session.removeSet}
-          onRemoveExercise={session.removeExercise}
-          onAdjustSet={session.adjustSet}
-          onExample={setPrompt}
-        />
-      ) : (
-        <ScrollView
-          className="flex-1"
-          keyboardShouldPersistTaps="handled"
-          contentContainerClassName="grow px-5 pb-6 pt-5"
-        >
-          {session.analysisLoading ? (
-            <View className="flex-1 items-center justify-center">
-              <ActivityIndicator
-                color={colors.accent}
-                accessibilityLabel="Loading saved analysis"
-              />
-            </View>
-          ) : session.response ? (
-            <View>
-              {session.response.question ? (
-                <View className="mb-5 items-end">
-                  <View className="max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark">
-                    <Text
-                      selectable
-                      className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
-                    >
-                      {session.response.question}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
-              <AnalysisMarkdown text={session.response.text} />
-              {session.response.chart ? <ProgressChart chart={session.response.chart} /> : null}
-              <ToolCallPills
-                key={session.response._id ?? session.response.text}
-                calls={session.response.toolCalls}
-              />
+              <History color={colors.text} size={20} strokeWidth={2} />
+            </IconButton>
+            <IconButton accessibilityLabel="Open conversation" onPress={openConversation}>
+              <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
+            </IconButton>
+            <IconButton
+              accessibilityLabel="Open model settings"
+              onPress={() => setModelSettingsOpen(true)}
+            >
+              <BrainCircuit color={colors.text} size={20} strokeWidth={2} />
+            </IconButton>
+            <IconButton
+              accessibilityLabel="Open settings"
+              disabled={busy}
+              onPress={() => router.push('/settings/account')}
+            >
+              <Settings color={colors.text} size={20} strokeWidth={2} />
+            </IconButton>
+            {mode === 'analysis' ? (
+              <IconButton
+                accessibilityLabel="Start new analysis"
+                disabled={busy || session.analysisLoading}
+                onPress={newAnalysis}
+              >
+                <Plus color={colors.text} size={20} strokeWidth={2} />
+              </IconButton>
+            ) : null}
+          </>
+        }
+      >
+        <View className="px-5 pb-2">
+          <ModeSwitch mode={mode} onChange={changeMode} disabled={busy} />
+          {session.draft?.editingWorkoutId ? (
+            <View className="mt-3 gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark">
+              <Text className="font-bold text-ink dark:text-ink-dark">
+                Editing saved workout ·{' '}
+                {session.draft.performedAt !== undefined
+                  ? new Date(session.draft.performedAt).toLocaleDateString()
+                  : session.draft.date}
+              </Text>
+              <Text className="text-sm text-muted dark:text-muted-dark">
+                Review and save your changes when you’re done.
+              </Text>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onPress={() => void session.cancelHistoryEdit()}
+              >
+                Cancel changes
+              </Button>
             </View>
           ) : null}
-        </ScrollView>
-      )}
-      {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
-        <WorkoutReviewBar
-          key={`review-${session.draft?._id}`}
-          response={session.workoutExchange}
-          busy={busy}
-          hasSets={setCount > 0}
-          editing={!!session.draft?.editingWorkoutId}
-          onReview={() => router.push('/workout/confirm')}
+        </View>
+        {mode === 'workout' ? (
+          <WorkoutTable
+            key={`table-${session.draft?._id}`}
+            exercises={exercises}
+            busy={session.busy || queue.hasWork}
+            savingSets={session.savingSets}
+            onRemoveSet={session.removeSet}
+            onRemoveExercise={session.removeExercise}
+            onAdjustSet={session.adjustSet}
+            onExample={setPrompt}
+          />
+        ) : (
+          <ScrollView
+            className="flex-1"
+            keyboardShouldPersistTaps="handled"
+            contentContainerClassName="grow px-5 pb-6 pt-5"
+          >
+            {session.analysisLoading ? (
+              <View className="flex-1 items-center justify-center">
+                <ActivityIndicator
+                  color={colors.accent}
+                  accessibilityLabel="Loading saved analysis"
+                />
+              </View>
+            ) : session.response ? (
+              <View>
+                {session.response.question ? (
+                  <View className="mb-5 items-end">
+                    <View className="max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark">
+                      <Text
+                        selectable
+                        className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
+                      >
+                        {session.response.question}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                <AnalysisMarkdown text={session.response.text} />
+                {session.response.chart ? <ProgressChart chart={session.response.chart} /> : null}
+                <ToolCallPills
+                  key={session.response._id ?? session.response.text}
+                  calls={session.response.toolCalls}
+                />
+              </View>
+            ) : null}
+          </ScrollView>
+        )}
+        {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
+          <WorkoutReviewBar
+            key={`review-${session.draft?._id}`}
+            response={session.workoutExchange}
+            busy={busy}
+            hasSets={setCount > 0}
+            editing={!!session.draft?.editingWorkoutId}
+            onReview={() => router.push('/workout/confirm')}
+          />
+        ) : null}
+        <ErrorNotice message={session.error} />
+        <PromptBar
+          key={mode === 'analysis' ? `analysis-${analysisReset}` : mode}
+          voiceEnabled={
+            !conversationOpen && !historyOpen && !analysisHistoryOpen && !modelSettingsOpen
+          }
+          value={prompts[mode]}
+          onChangeText={setPrompt}
+          onSubmit={queue.enqueue}
+          queued={queue.pending}
+          queueFull={queue.full}
+          failedPrompt={queue.failed}
+          onRemoveQueued={queue.remove}
+          onRetryFailed={queue.retry}
+          onDiscardFailed={queue.discardFailed}
+          placeholder={
+            mode === 'workout' ? 'Log a set or make a correction…' : 'Ask about your training…'
+          }
+          processing={session.busy}
+          processingLabel={
+            mode === 'workout' ? 'Updating your draft…' : 'Reading your training history…'
+          }
         />
-      ) : null}
-      <ErrorNotice message={session.error} />
-      <PromptBar
-        key={mode === 'analysis' ? `analysis-${analysisReset}` : mode}
-        voiceEnabled={
-          !conversationOpen && !historyOpen && !analysisHistoryOpen && !modelSettingsOpen
-        }
-        value={prompts[mode]}
-        onChangeText={setPrompt}
-        onSubmit={queue.enqueue}
-        queued={queue.pending}
-        queueFull={queue.full}
-        failedPrompt={queue.failed}
-        onRemoveQueued={queue.remove}
-        onRetryFailed={queue.retry}
-        onDiscardFailed={queue.discardFailed}
-        placeholder={
-          mode === 'workout' ? 'Log a set or make a correction…' : 'Ask about your training…'
-        }
-        processing={session.busy}
-        processingLabel={
-          mode === 'workout' ? 'Updating your draft…' : 'Reading your training history…'
-        }
-      />
-      {mode === 'analysis' ? (
-        <AnalysisConversationDrawer
-          key={legacyConversation ? 'legacy' : (session.analysisId ?? 'new')}
-          sessionId={legacyConversation ? undefined : session.analysisId}
-          legacy={legacyConversation}
-          onClose={() => setConversationOpen(false)}
-          visible={conversationOpen}
+        <AnalysisHistoryDrawer
+          visible={analysisHistoryOpen}
+          selectedId={session.analysisId}
+          onClose={() => setAnalysisHistoryOpen(false)}
+          onNew={newAnalysis}
+          onOpen={(id) => {
+            if (busy) return;
+            session.openAnalysis(id);
+            setPrompts((previous) => ({ ...previous, analysis: '' }));
+            setAnalysisReset((previous) => previous + 1);
+            setAnalysisHistoryOpen(false);
+          }}
+          onLegacy={() => {
+            setAnalysisHistoryOpen(false);
+            setLegacyConversation(true);
+            setConversationOpen(true);
+          }}
         />
-      ) : (
-        <ConversationDrawer
-          messages={session.messages}
-          mode={mode}
-          onClose={() => setConversationOpen(false)}
-          visible={conversationOpen}
+        <QuickModelSettings
+          visible={modelSettingsOpen}
+          onClose={() => setModelSettingsOpen(false)}
         />
-      )}
-      <AnalysisHistoryDrawer
-        visible={analysisHistoryOpen}
-        selectedId={session.analysisId}
-        onClose={() => setAnalysisHistoryOpen(false)}
-        onNew={newAnalysis}
-        onOpen={(id) => {
-          if (busy) return;
-          session.openAnalysis(id);
-          setPrompts((previous) => ({ ...previous, analysis: '' }));
-          setAnalysisReset((previous) => previous + 1);
-          setAnalysisHistoryOpen(false);
-        }}
-        onLegacy={() => {
-          setAnalysisHistoryOpen(false);
-          setLegacyConversation(true);
-          setConversationOpen(true);
-        }}
-      />
-      <QuickModelSettings visible={modelSettingsOpen} onClose={() => setModelSettingsOpen(false)} />
-      <WorkoutHistoryDrawer
-        onEdit={() => {
-          setHistoryOpen(false);
-          setPrompts((previous) => ({ ...previous, workout: '' }));
-          router.setParams({ mode: 'workout' });
-        }}
-        onClose={() => setHistoryOpen(false)}
-        visible={historyOpen}
-        workouts={session.workouts}
-      />
-    </Screen>
+        <WorkoutHistoryDrawer
+          onEdit={() => {
+            setHistoryOpen(false);
+            setPrompts((previous) => ({ ...previous, workout: '' }));
+            router.setParams({ mode: 'workout' });
+          }}
+          onClose={() => setHistoryOpen(false)}
+          visible={historyOpen}
+          workouts={session.workouts}
+        />
+      </Screen>
+    </SwipeableConversation>
   );
 }

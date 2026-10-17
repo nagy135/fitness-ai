@@ -343,6 +343,15 @@ Analysis sessions save automatically to your account, including prompts, answers
 and charts. In Analysis mode, use the history icon to reopen or rename a session,
 or the **+** button to start another without deleting earlier results. The main
 screen shows the latest question and its answer; open Conversation for earlier interactions.
+In either mode, swipe left anywhere on the main screen to reveal a full-width
+Conversation panel on the right, or tap the conversation icon. Swipe right, tap
+the back arrow, or use Android Back to return. The panel shows the selected
+analysis session or current workout draft, with earlier messages available through
+**Load earlier messages**. Workout history edits have their own conversation;
+starting a fresh workout does not show messages from previous workouts. Each
+reply's tool calls appear as separate tappable bubbles before its answer, in
+execution order, with the full input and result or error available in a dialog.
+Deploy the `aiMessages.workoutConversation` query alongside the new APK.
 The latest session is restored when the app opens. **Earlier analysis messages** keeps
 conversations from before sessions were introduced accessible. Deploy the updated
 Convex schema and functions before using this feature in a new mobile build.

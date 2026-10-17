@@ -27,15 +27,21 @@ function fullPayload(call: ToolCallRecord) {
   );
 }
 
-export function ToolCallPills({ calls }: { calls?: ToolCallRecord[] }) {
+export function ToolCallPills({
+  calls,
+  layout = 'pills',
+}: {
+  calls?: ToolCallRecord[];
+  layout?: 'pills' | 'bubbles';
+}) {
   const { colors } = useAppTheme();
   const [selected, setSelected] = useState<ToolCallRecord>();
   const close = () => setSelected(undefined);
   if (!calls?.length) return null;
 
   return (
-    <View className="mt-2">
-      <View className="flex-row flex-wrap gap-1">
+    <View className={layout === 'bubbles' ? 'mb-3 w-[94%]' : 'mt-2'}>
+      <View className={layout === 'bubbles' ? 'gap-2' : 'flex-row flex-wrap gap-1'}>
         {calls.map((call, index) => (
           <Pressable
             key={`${call.toolCallId}-${index}`}
@@ -44,8 +50,22 @@ export function ToolCallPills({ calls }: { calls?: ToolCallRecord[] }) {
             accessibilityHint="Opens the full input and result in a dialog"
             hitSlop={4}
             onPress={() => setSelected(call)}
-            className="max-w-full rounded-full border border-line bg-soft px-[5px] py-1 active:opacity-70 dark:border-line-dark dark:bg-soft-dark"
+            className={
+              layout === 'bubbles'
+                ? 'min-h-12 rounded-2xl border border-line bg-soft px-4 py-3 active:opacity-70 dark:border-line-dark dark:bg-soft-dark'
+                : 'max-w-full rounded-full border border-line bg-soft px-[5px] py-1 active:opacity-70 dark:border-line-dark dark:bg-soft-dark'
+            }
           >
+            {layout === 'bubbles' ? (
+              <Text className="mb-1 text-[11px] text-muted dark:text-muted-dark">
+                Tool call ·{' '}
+                {call.error !== undefined
+                  ? 'Failed'
+                  : call.output !== undefined
+                    ? 'Completed'
+                    : 'No result recorded'}
+              </Text>
+            ) : null}
             <Text className="text-[11px] font-medium leading-4 text-ink dark:text-ink-dark">
               {call.toolName}
             </Text>
