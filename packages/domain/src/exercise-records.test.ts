@@ -56,10 +56,97 @@ describe('exercise records', () => {
       'distanceMeters',
     ]);
   });
+
+  it('shows the same all-time best set used by PR badges, breaking weight ties by reps', () => {
+    const sessions = [
+      { workoutId: 'recent', performedAt: 3, sets: [{ weightKg: 89, reps: 9 }] },
+      { workoutId: 'best', performedAt: 2, sets: [{ weightKg: 89, reps: 11 }] },
+      { workoutId: 'older-tie', performedAt: 1, sets: [{ weightKg: 89, reps: 11 }] },
+    ];
+    const records = summarizeExerciseRecords(sessions, 'weight_reps');
+    const baseline = summarizeExerciseRecordBaseline(sessions, 'weight_reps');
+    expect(records.previous).toEqual(sessions[0]);
+    expect(records.maximums.find((record) => record.metric === 'weightKg')).toEqual({
+      metric: 'weightKg',
+      workoutId: 'best',
+      performedAt: 2,
+      set: baseline.maxSet,
+    });
+    expect(baseline.maxSet).toEqual({ weightKg: 89, reps: 11 });
+    expect(
+      exerciseRecordImprovements([{ weightKg: 89, reps: 10 }], 'weight_reps', baseline).maxSet,
+    ).toBe(false);
+    expect(
+      exerciseRecordImprovements([{ weightKg: 89, reps: 12 }], 'weight_reps', baseline).maxSet,
+    ).toBe(true);
+    expect(
+      exerciseRecordImprovements([{ weightKg: 90, reps: 1 }], 'weight_reps', baseline).maxSet,
+    ).toBe(true);
+    expect(
+      exerciseRecordImprovements([{ weightKg: 88, reps: 30 }], 'weight_reps', baseline).maxSet,
+    ).toBe(false);
+  });
+
+  it('breaks equal-weight ties within one workout by reps, while higher weights still win', () => {
+    const session = {
+      workoutId: 'saved',
+      performedAt: 1,
+      sets: [
+        { weightKg: 89, reps: 9 },
+        { weightKg: 89, reps: 11 },
+        { weightKg: 88, reps: 30 },
+      ],
+    };
+    expect(summarizeExerciseRecords([session], 'weight_reps').maximums[0].set).toEqual({
+      weightKg: 89,
+      reps: 11,
+    });
+    expect(
+      summarizeExerciseRecords(
+        [{ ...session, sets: [...session.sets, { weightKg: 90, reps: 1 }] }],
+        'weight_reps',
+      ).maximums[0].set,
+    ).toEqual({ weightKg: 90, reps: 1 });
+  });
 });
 
 describe('live exercise records', () => {
   const baseline = { volume: 1000, maxSet: { weightKg: 100, reps: 5 } };
+
+  it('awards both badges for the screenshot example when 89 kg × 9 is the saved best', () => {
+    const baseline = summarizeExerciseRecordBaseline(
+      [
+        {
+          workoutId: 'saved',
+          performedAt: 1,
+          sets: [
+            { weightKg: 54, reps: 10 },
+            { weightKg: 89, reps: 9 },
+            { weightKg: 75, reps: 7 },
+          ],
+        },
+      ],
+      'weight_reps',
+    );
+    expect(baseline).toEqual({ volume: 1866, maxSet: { weightKg: 89, reps: 9 } });
+    expect(
+      exerciseRecordImprovements([{ weightKg: 89, reps: 10 }], 'weight_reps', baseline),
+    ).toEqual({ volume: false, maxSet: true });
+    expect(
+      exerciseRecordImprovements(
+        [
+          { weightKg: 47, reps: 10 },
+          { weightKg: 89, reps: 10 },
+          { weightKg: 75, reps: 10 },
+        ],
+        'weight_reps',
+        baseline,
+      ),
+    ).toEqual({ volume: true, maxSet: true });
+    expect(
+      exerciseRecordImprovements([{ weightKg: 89, reps: 9 }], 'weight_reps', baseline).maxSet,
+    ).toBe(false);
+  });
 
   it('finds the best session volume and selects reps from the heaviest set', () => {
     expect(

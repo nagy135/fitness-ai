@@ -31,10 +31,13 @@ function weightedSets(sets: readonly WorkoutSet[], trackingType: TrackingType) {
 
 // Weight takes priority; repetitions break ties at the same weight.
 function betterMaxSet(
-  set: { weightKg: number; reps: number },
-  best: { weightKg: number; reps: number },
+  set: { weightKg: number; reps?: number },
+  best: { weightKg: number; reps?: number },
 ) {
-  return set.weightKg > best.weightKg || (set.weightKg === best.weightKg && set.reps > best.reps);
+  return (
+    set.weightKg > best.weightKg ||
+    (set.weightKg === best.weightKg && (set.reps ?? 0) > (best.reps ?? 0))
+  );
 }
 
 /** Saved sessions only: each session's volume includes every row for the exercise. */
@@ -90,7 +93,16 @@ export function summarizeExerciseRecords(sessions: ExerciseSession[], trackingTy
     for (const session of ordered) {
       for (const set of session.sets) {
         const value = set[metric];
-        if (value !== undefined && Number.isFinite(value) && (!best || value > best.set[metric]!)) {
+        if (value === undefined || !Number.isFinite(value)) continue;
+        const improved =
+          !best ||
+          (metric === 'weightKg'
+            ? betterMaxSet(
+                { weightKg: value, reps: set.reps },
+                { weightKg: best.set.weightKg!, reps: best.set.reps },
+              )
+            : value > best.set[metric]!);
+        if (improved) {
           best = { metric, workoutId: session.workoutId, performedAt: session.performedAt, set };
         }
       }

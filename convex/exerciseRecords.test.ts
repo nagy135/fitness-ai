@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import type { ExerciseRecordBaseline } from '@fitness/domain';
+import { exerciseRecordImprovements, type ExerciseRecordBaseline } from '@fitness/domain';
 import { requireUserProfile } from './lib/auth';
 import { currentForUser } from './workoutDrafts';
 import { getExerciseRecordBaselines, getExerciseRecords } from './analysis';
@@ -15,7 +15,7 @@ const run = (
       args: { exerciseId: Id<'exercises'> },
     ) => Promise<{
       previous: { workoutId: string; sets: unknown[] } | null;
-      maximums: { set: { weightKg?: number } }[];
+      maximums: { metric: string; workoutId: string; set: { weightKg?: number; reps?: number } }[];
     }>;
   }
 )._handler;
@@ -147,4 +147,64 @@ it('returns no baseline for a first session and rejects foreign exercises before
     'Exercise not found',
   );
   expect(db.query).not.toHaveBeenCalled();
+});
+
+it('uses the same best set for displayed records and badges, and sums every matching row per workout for volume', async () => {
+  const workouts = [
+    {
+      _id: 'recent',
+      performedAt: 3,
+      exercises: [
+        {
+          exerciseId,
+          sets: [
+            { weightKg: 54, reps: 10 },
+            { weightKg: 89, reps: 9 },
+          ],
+        },
+        { exerciseId: 'other', sets: [{ weightKg: 999, reps: 100 }] },
+        { exerciseId, sets: [{ weightKg: 75, reps: 7 }] },
+      ],
+    },
+    {
+      _id: 'best',
+      performedAt: 2,
+      exercises: [{ exerciseId, sets: [{ weightKg: 89, reps: 11 }] }],
+    },
+    {
+      _id: 'old-tie',
+      performedAt: 1,
+      exercises: [{ exerciseId, sets: [{ weightKg: 89, reps: 11 }] }],
+    },
+  ];
+  db.query.mockReturnValue({ withIndex: () => ({ collect: async () => workouts }) });
+  const records = await run(ctx, { exerciseId });
+  const [baseline] = await runBaselines(ctx, { exerciseIds: [exerciseId] });
+  expect(records.previous?.workoutId).toBe('recent');
+  expect(records.previous?.sets).toHaveLength(3);
+  expect(records.maximums.find((record) => record.metric === 'weightKg')).toMatchObject({
+    workoutId: 'best',
+    set: baseline.maxSet,
+  });
+  expect(baseline).toMatchObject({ volume: 1866, maxSet: { weightKg: 89, reps: 11 } });
+  expect(
+    exerciseRecordImprovements(
+      [
+        { weightKg: 47, reps: 10 },
+        { weightKg: 89, reps: 10 },
+        { weightKg: 75, reps: 10 },
+      ],
+      'weight_reps',
+      baseline,
+    ),
+  ).toEqual({ volume: true, maxSet: false });
+  expect(
+    exerciseRecordImprovements([{ weightKg: 89, reps: 12 }], 'weight_reps', baseline).maxSet,
+  ).toBe(true);
+  expect(
+    exerciseRecordImprovements([{ weightKg: 90, reps: 1 }], 'weight_reps', baseline).maxSet,
+  ).toBe(true);
+  expect(
+    exerciseRecordImprovements([{ weightKg: 88, reps: 30 }], 'weight_reps', baseline).maxSet,
+  ).toBe(false);
 });
