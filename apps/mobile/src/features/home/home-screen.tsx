@@ -6,7 +6,7 @@ import { Button, IconButton, ModeSwitch, type FitnessMode } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PromptBar } from '@/components/prompt-bar';
 import { WorkoutConversationDrawer } from '@/components/workout-conversation-drawer';
-import { SwipeableConversation } from '@/components/swipeable-conversation';
+import { ChatPages } from '@/components/chat-pages';
 import { AnalysisConversationDrawer } from '@/components/analysis-conversation-drawer';
 import { AnalysisMarkdown } from '@/components/analysis-markdown';
 import { ToolCallPills } from '@/components/tool-call-pills';
@@ -89,7 +89,7 @@ export default function HomeScreen() {
             <History color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
-            accessibilityLabel={conversationOpen ? 'Close conversation' : 'Open conversation'}
+            accessibilityLabel={conversationOpen ? 'Close chat' : 'Open chat'}
             accessibilityState={{ expanded: conversationOpen }}
             onPress={() => (conversationOpen ? setConversationOpen(false) : openConversation())}
           >
@@ -143,9 +143,8 @@ export default function HomeScreen() {
           </View>
         ) : null}
       </View>
-      <SwipeableConversation
+      <ChatPages
         open={conversationOpen}
-        enabled={!historyOpen && !analysisHistoryOpen && !modelSettingsOpen}
         onOpenChange={(open) => {
           if (open && !conversationOpen) openConversation();
           else setConversationOpen(open);
@@ -224,10 +223,11 @@ export default function HomeScreen() {
             busy={busy}
             hasSets={setCount > 0}
             editing={!!session.draft?.editingWorkoutId}
+            onChat={openConversation}
             onReview={() => router.push('/workout/confirm')}
           />
         ) : null}
-      </SwipeableConversation>
+      </ChatPages>
       <ErrorNotice message={session.error} />
       <PromptBar
         key={mode === 'analysis' ? `analysis-${analysisReset}` : mode}

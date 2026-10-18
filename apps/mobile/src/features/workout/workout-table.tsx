@@ -124,40 +124,38 @@ export function WorkoutTable({
   const setCount = exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
   return (
     <View className="flex-1">
-      {exercises.length > 0 ? (
-        <View className="flex-row flex-wrap items-center justify-between gap-x-3 px-5 pt-2">
-          <Text className="text-sm text-muted dark:text-muted-dark">
-            {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} · {setCount}{' '}
-            {setCount === 1 ? 'set' : 'sets'}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Show all exercises"
-            accessibilityHint="Collapses the sets and returns to the exercise overview"
-            onPress={() => {
-              pendingExerciseScroll.current = undefined;
-              setExpandedExercises(new Set());
-              setExpanded(new Set());
-              setChanges((previous) => ({ ...previous, setIds: [] }));
-              scrollRef.current?.scrollTo({ y: 0, animated: false });
-            }}
-            className="min-h-11 flex-row items-center gap-2 rounded-lg px-3 active:bg-soft dark:active:bg-soft-dark"
-          >
-            <List size={18} color={colors.accent} />
-            <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
-              All exercises
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
       <ScrollView
         ref={scrollRef}
         className="flex-1"
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="grow px-5 pb-6 pt-4"
+        contentContainerClassName="grow px-5 pb-6 pt-2"
       >
         {exercises.length === 0 ? null : (
           <View ref={contentRef} collapsable={false}>
+            <View className="mb-4 flex-row flex-wrap items-center justify-between gap-x-3">
+              <Text className="text-sm text-muted dark:text-muted-dark">
+                {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} · {setCount}{' '}
+                {setCount === 1 ? 'set' : 'sets'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show all exercises"
+                accessibilityHint="Collapses the sets and returns to the exercise overview"
+                onPress={() => {
+                  pendingExerciseScroll.current = undefined;
+                  setExpandedExercises(new Set());
+                  setExpanded(new Set());
+                  setChanges((previous) => ({ ...previous, setIds: [] }));
+                  scrollRef.current?.scrollTo({ y: 0, animated: false });
+                }}
+                className="min-h-11 flex-row items-center gap-2 rounded-lg px-3 active:bg-soft dark:active:bg-soft-dark"
+              >
+                <List size={18} color={colors.accent} />
+                <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
+                  All exercises
+                </Text>
+              </Pressable>
+            </View>
             {exercises.map((exercise) => {
               const exerciseOpen = expandedExercises.has(exercise.rowId);
               const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;

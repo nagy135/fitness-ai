@@ -19,7 +19,7 @@ const autoOpenByTool = {
   reorderExercises: false,
 } satisfies Record<WorkoutToolName, boolean>;
 
-export function shouldAutoOpenWorkoutHistory(calls?: readonly ToolCallRecord[]): boolean {
+export function shouldAutoOpenWorkoutChat(calls?: readonly ToolCallRecord[]): boolean {
   // A write attempt blocks opening even if it fails. Unknown/legacy tools also
   // stay closed rather than assuming they cannot change exercises.
   return calls?.every((call) => autoOpenByTool[call.toolName as WorkoutToolName] === true) ?? true;

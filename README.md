@@ -342,20 +342,21 @@ schema and functions to enable this context behavior for existing mobile builds.
 Analysis sessions save automatically to your account, including prompts, answers,
 and charts. In Analysis mode, use the history icon to reopen or rename a session,
 or the **+** button to start another without deleting earlier results. The main
-screen shows the latest question and its answer; open Conversation for earlier interactions.
-In either mode, swipe left in the content area to reveal the Conversation panel
-on the right, or tap the conversation icon. The header, mode switch, and bottom
+screen shows the latest question and its answer; open Chat for earlier interactions.
+Tap **Chat** below the workout or the chat icon in either mode to slide into the
+Chat view. The header, mode switch, and bottom
 prompt bar stay fixed; you can keep sending messages or switch modes while the
-conversation is open. Swipe right, tap the back arrow or conversation icon, or
-use Android Back to return. The panel shows the selected
+chat is open. Tap the back arrow or chat icon, or use Android Back to return.
+Page navigation uses buttons, leaving touch drags available for scrolling.
+The panel shows the selected
 analysis session or current workout draft, with earlier messages available through
 **Load earlier messages**. Workout history edits have their own conversation;
 starting a fresh workout does not show messages from previous workouts. Each
 reply's tool calls appear as small inline pills before its answer, in execution
-order, using the same compact controls as History and the latest reply. Tap a
+order, using the same compact controls throughout Chat. Tap a
 pill for its full input and result or error in a dialog.
 The selected conversation stays subscribed and mounted while offscreen, keeping
-its loaded pages and rendered Markdown in memory between swipes. New messages
+its loaded pages and rendered Markdown in memory between visits. New messages
 still arrive live; unchanged answers skip redundant DOM updates. Selecting a
 different session or workout draft replaces this cache. Unmounting the home
 screen or signing out releases it. A newly selected chat can still have an initial load.
@@ -365,18 +366,18 @@ conversations from before sessions were introduced accessible. Deploy the update
 Convex schema and functions before using this feature in a new mobile build.
 
 New assistant replies save the tools they executed, including each call's full
-input and result (or error). Tap a tool-name pill in workout reply **History**, an
-analysis answer, or **Conversation** to open its payload; close it with **×**,
+input and result (or error). Tap a tool-name pill in an analysis answer or
+**Chat** to open its payload; close it with **×**,
 the backdrop, or the system back action. Tool details remain available after
 reopening a saved analysis or retrieving a completed workout request. Older
 replies without saved tool details continue to show their text and charts.
 Deploy the updated Convex schema and functions to start recording these details.
-The latest workout reply opens **History** automatically when it only reads data
-or uses no tools. Any exercise-changing tool call keeps the new reply collapsed,
+The latest workout reply slides into **Chat** automatically when it only reads data
+or uses no tools. Any exercise-changing tool call keeps the exercise view open,
 including catalog creation/updates, draft edits, and failed write attempts.
 One write call takes precedence over any number of read calls. Unknown tools also
-keep it collapsed. You can always open or close **History** manually; refreshing
-the same reply preserves your choice.
+keep the exercise view open. You can always open **Chat** manually and return
+with its back arrow; refreshing the same reply does not navigate again.
 
 Manual set adjustment buttons update immediately and accept repeated taps while
 the changes save. Each tap is saved as an increment, so rapid taps accumulate;

@@ -94,6 +94,14 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+it('keeps the overview and exercise cards in the same vertical scroll', () => {
+  const scroll = renderer.root.findByType('ScrollView' as never);
+  expect(scroll.findByProps({ accessibilityLabel: 'Show all exercises' })).toBe(
+    find('Show all exercises'),
+  );
+  expect(scroll.findByProps({ accessibilityLabel: 'Bench, 1 set' })).toBe(find('Bench, 1 set'));
+});
+
 it('unfolds changed exercises while keeping individual sets folded', async () => {
   expect(isOpen('Bench, 1 set')).toBe(false);
   await update(

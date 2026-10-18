@@ -64,7 +64,11 @@ it.each(['workout', 'analysis'] as const)(
     expect(renderer.root.findAllByType('ToolCallPills' as never)).toHaveLength(1);
     expect(renderer.root.findByType('ToolCallPills' as never).props).toEqual({ calls: toolCalls });
     await act(() =>
-      renderer.root.findByProps({ accessibilityLabel: 'Close conversation' }).props.onPress(),
+      renderer.root
+        .findByProps({
+          accessibilityLabel: mode === 'workout' ? 'Back to workout' : 'Back to analysis',
+        })
+        .props.onPress(),
     );
     expect(onClose).toHaveBeenCalledOnce();
   },

@@ -52,15 +52,18 @@ export function ConversationDrawer({
     >
       <View className="mx-auto w-full max-w-3xl flex-1 px-5">
         <View className="min-h-16 flex-row items-center gap-3 py-2">
-          <IconButton accessibilityLabel="Close conversation" onPress={onClose}>
+          <IconButton
+            accessibilityLabel={mode === 'workout' ? 'Back to workout' : 'Back to analysis'}
+            onPress={onClose}
+          >
             <ArrowLeft color={colors.text} size={22} />
           </IconButton>
           <View className="flex-1">
             <DisplayText accessibilityRole="header" className="text-[26px] leading-8">
-              Conversation
+              Chat
             </DisplayText>
             <Text className="text-xs text-muted dark:text-muted-dark">
-              {mode === 'workout' ? 'Current workout' : 'Current analysis'} · Swipe right to return
+              {mode === 'workout' ? 'Current workout' : 'Current analysis'}
             </Text>
           </View>
         </View>

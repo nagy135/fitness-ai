@@ -36,15 +36,9 @@ vi.mock('@/components/screen', () => ({
   Screen: ({ children, headerActions }: { children: ReactNode; headerActions: ReactNode }) =>
     createElement('Screen', null, headerActions, children),
 }));
-vi.mock('@/components/swipeable-conversation', () => ({
-  SwipeableConversation: ({
-    children,
-    panel,
-    ...props
-  }: {
-    children: ReactNode;
-    panel: ReactNode;
-  }) => createElement('SwipePages', props, children, panel),
+vi.mock('@/components/chat-pages', () => ({
+  ChatPages: ({ children, panel, ...props }: { children: ReactNode; panel: ReactNode }) =>
+    createElement('ChatPages', props, children, panel),
 }));
 vi.mock('@/components/loading-screen', () => ({ LoadingScreen: 'LoadingScreen' }));
 vi.mock('@/components/prompt-bar', () => ({ PromptBar: 'PromptBar' }));
@@ -93,9 +87,7 @@ async function mount() {
   });
 }
 async function open() {
-  await act(() =>
-    renderer.root.findByProps({ accessibilityLabel: 'Open conversation' }).props.onPress(),
-  );
+  await act(() => renderer.root.findByProps({ accessibilityLabel: 'Open chat' }).props.onPress());
 }
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -109,19 +101,19 @@ afterEach(async () => {
 });
 
 it.each(['workout', 'analysis'] as const)(
-  'keeps the header, mode switch and usable composer outside the swipe in %s',
+  'keeps the header, mode switch and usable composer outside the page transition in %s',
   async (mode) => {
     state.mode = mode;
     await mount();
     const prompt = find('PromptBar');
     const modes = find('ModeSwitch');
-    const pages = find('SwipePages');
+    const pages = find('ChatPages');
     expect(pages.findAllByType('PromptBar' as never)).toHaveLength(0);
     expect(pages.findAllByType('ModeSwitch' as never)).toHaveLength(0);
     expect(pages.findAllByType('IconButton' as never)).toHaveLength(0);
     await act(() => prompt.props.onChangeText('Follow-up'));
     await open();
-    expect(find('SwipePages').props.open).toBe(true);
+    expect(find('ChatPages').props.open).toBe(true);
     expect(find('PromptBar')).toBe(prompt);
     expect(find('ModeSwitch')).toBe(modes);
     expect(prompt.props.value).toBe('Follow-up');
@@ -129,9 +121,9 @@ it.each(['workout', 'analysis'] as const)(
     await act(() => prompt.props.onSubmit('Follow-up'));
     expect(state.enqueue).toHaveBeenCalledWith('Follow-up');
     await act(() =>
-      renderer.root.findByProps({ accessibilityLabel: 'Close conversation' }).props.onPress(),
+      renderer.root.findByProps({ accessibilityLabel: 'Close chat' }).props.onPress(),
     );
-    expect(find('SwipePages').props.open).toBe(false);
+    expect(find('ChatPages').props.open).toBe(false);
   },
 );
 
@@ -142,7 +134,7 @@ it('switches the selected conversation using the fixed mode switch while the pan
   expect(state.setParams).toHaveBeenCalledWith({ mode: 'analysis' });
   state.mode = 'analysis';
   await act(() => renderer.update(createElement(HomeScreen)));
-  expect(find('SwipePages').props.open).toBe(true);
+  expect(find('ChatPages').props.open).toBe(true);
   expect(find('AnalysisConversation').props).toMatchObject({
     visible: true,
     sessionId: 'analysis',
@@ -157,4 +149,14 @@ it('still requires workout review when switching out of an unsaved workout from 
   await act(() => find('ModeSwitch').props.onChange('analysis'));
   expect(state.push).toHaveBeenCalledWith('/workout/confirm');
   expect(state.setParams).not.toHaveBeenCalled();
+});
+
+it('opens the current workout chat from the bottom Chat button', async () => {
+  state.exercises = [{ sets: [{ reps: 10 }] }];
+  await mount();
+  await act(() => find('WorkoutReview').props.onChat());
+  expect(find('ChatPages').props.open).toBe(true);
+  expect(find('WorkoutConversation').props.visible).toBe(true);
+  await act(() => find('WorkoutConversation').props.onClose());
+  expect(find('ChatPages').props.open).toBe(false);
 });
