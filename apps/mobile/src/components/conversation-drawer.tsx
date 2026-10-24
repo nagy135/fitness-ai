@@ -1,11 +1,10 @@
 import { memo, useEffect, useRef } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { ArrowLeft, MessageSquareText } from 'lucide-react-native';
-import { Button, IconButton, type FitnessMode } from '@fitness/ui';
+import { MessageSquareText } from 'lucide-react-native';
+import { Button, type FitnessMode } from '@fitness/ui';
 import type { AnalysisChart, ToolCallRecord } from '@fitness/ai';
 import { useAppTheme } from './theme-provider';
 import { ProgressChart } from './progress-chart';
-import { DisplayText } from './display-text';
 import { AnalysisMarkdown } from './analysis-markdown';
 import { ToolCallPills } from './tool-call-pills';
 
@@ -21,14 +20,12 @@ type ConversationMessage = {
 export function ConversationDrawer({
   messages,
   mode,
-  onClose,
   visible,
   onLoadOlder,
   loadingOlder,
 }: {
   messages: ConversationMessage[] | undefined;
   mode: FitnessMode;
-  onClose: () => void;
   visible: boolean;
   onLoadOlder?: () => void;
   loadingOlder?: boolean;
@@ -50,23 +47,7 @@ export function ConversationDrawer({
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
     >
-      <View className="mx-auto w-full max-w-3xl flex-1 px-5">
-        <View className="min-h-16 flex-row items-center gap-3 py-2">
-          <IconButton
-            accessibilityLabel={mode === 'workout' ? 'Back to workout' : 'Back to analysis'}
-            onPress={onClose}
-          >
-            <ArrowLeft color={colors.text} size={22} />
-          </IconButton>
-          <View className="flex-1">
-            <DisplayText accessibilityRole="header" className="text-[26px] leading-8">
-              Chat
-            </DisplayText>
-            <Text className="text-xs text-muted dark:text-muted-dark">
-              {mode === 'workout' ? 'Current workout' : 'Current analysis'}
-            </Text>
-          </View>
-        </View>
+      <View className="mx-auto w-full max-w-3xl flex-1 px-5 pt-3">
         {messages === undefined ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator color={colors.accent} accessibilityLabel="Loading conversation" />

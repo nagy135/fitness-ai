@@ -347,10 +347,19 @@ Analysis sessions save automatically to your account, including prompts, answers
 and charts. In Analysis mode, use the history icon to reopen or rename a session,
 or the **+** button to start another without deleting earlier results. The main
 screen shows the latest question and its answer; open Chat for earlier interactions.
-Tap **Chat** below the workout or the chat icon in either mode to slide into the
-Chat view. The header, mode switch, and bottom
-prompt bar stay fixed; you can keep sending messages or switch modes while the
-chat is open. Tap the back arrow or chat icon, or use Android Back to return.
+Tap the chat icon above the prompt bar in either mode to slide into Chat. The
+same action row stays visible in both views, with individually bordered buttons
+on a transparent background: the chat icon becomes
+a dumbbell to return to tracking, or a chart icon to return to the analysis
+overview. In workout mode, a compact **Review** action remains on the right,
+including while Chat is open. There is no separate Chat/back banner or duplicate
+header chat button. The header, mode switch, actions, and prompt bar stay fixed;
+you can keep sending messages or switch modes while Chat is open. Tap the
+tracking/analysis icon, or use Android Back to return.
+Tracking uses compact 44-pixel exercise and set rows, tighter vertical spacing,
+and inline set editors. Choose a weight step of 0.5, 1, or 5 kg, then tap −/+.
+Previous sessions use a compact set/measurement table with a repeat action and
+the maximum weight below it.
 Page navigation uses buttons, leaving touch drags available for scrolling.
 The panel shows the selected
 analysis session or current workout draft, with earlier messages available through

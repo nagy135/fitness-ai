@@ -29,7 +29,7 @@ afterEach(async () => {
 it('shows an empty conversation for a new analysis without loading legacy messages', async () => {
   await act(() => {
     renderer = create(
-      createElement(AnalysisConversationDrawer, { visible: true, onClose: vi.fn() }),
+      createElement(AnalysisConversationDrawer, { visible: true }),
     );
   });
   expect(query).toHaveBeenCalledWith('conversation', 'skip', { initialNumItems: 20 });
@@ -39,7 +39,7 @@ it('shows an empty conversation for a new analysis without loading legacy messag
 it('loads legacy history only when explicitly opened', async () => {
   await act(() => {
     renderer = create(
-      createElement(AnalysisConversationDrawer, { visible: true, legacy: true, onClose: vi.fn() }),
+      createElement(AnalysisConversationDrawer, { visible: true, legacy: true }),
     );
   });
   expect(query).toHaveBeenCalledWith(
@@ -58,7 +58,6 @@ it('scopes an opened conversation to its saved session and supports older pages'
       createElement(AnalysisConversationDrawer, {
         sessionId: 'session-1' as Id<'analysisSessions'>,
         visible: true,
-        onClose: vi.fn(),
       }),
     );
   });

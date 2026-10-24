@@ -10,7 +10,8 @@ export function Screen({
   children,
   headerActions,
   headerLeft,
-}: PropsWithChildren<{ headerActions?: ReactNode; headerLeft?: ReactNode }>) {
+  compact = false,
+}: PropsWithChildren<{ headerActions?: ReactNode; headerLeft?: ReactNode; compact?: boolean }>) {
   const insets = useSafeAreaInsets();
   const { isDark } = useAppTheme();
   return (
@@ -29,7 +30,9 @@ export function Screen({
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View className="mx-auto w-full max-w-3xl flex-1">
-        <View className="min-h-[72px] flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1 px-5 py-3">
+        <View
+          className={`flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1 px-5 ${compact ? 'min-h-14 py-1' : 'min-h-[72px] py-3'}`}
+        >
           {headerLeft ?? (
             <View accessibilityLabel="Fitness AI" accessible className="flex-row items-center">
               <DisplayText className="text-[32px] leading-10">fit</DisplayText>

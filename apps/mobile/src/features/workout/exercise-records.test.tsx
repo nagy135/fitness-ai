@@ -115,3 +115,22 @@ it('disables copying a session when a tracking change removes a set’s measurem
   expect(action.props.disabled).toBe(true);
   expect(JSON.stringify(renderer.toJSON())).toContain('no longer match');
 });
+
+it('shows duration and distance columns for timed sessions and keeps mixed measurements aligned', async () => {
+  vi.mocked(useQuery).mockReturnValue({
+    previous: {
+      performedAt: 0,
+      sets: [{ durationSeconds: 120, distanceMeters: 500 }, { durationSeconds: 60 }],
+    },
+    maximums: [],
+  });
+  await render();
+  await toggle();
+  const text = JSON.stringify(renderer.toJSON());
+  expect(text).toContain('sec');
+  expect(text).toContain('Previous set 1: 120 sec × 500 m');
+  expect(text).toContain('Previous set 2: 60 sec');
+  expect(text).toContain('—');
+  expect(text).not.toContain('Reps');
+  expect(text).not.toContain('kg');
+});

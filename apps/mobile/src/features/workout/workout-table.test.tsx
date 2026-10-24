@@ -102,6 +102,14 @@ it('keeps the overview and exercise cards in the same vertical scroll', () => {
   expect(scroll.findByProps({ accessibilityLabel: 'Bench, 1 set' })).toBe(find('Bench, 1 set'));
 });
 
+it('removes a set from its folded row without opening the editor', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  expect(isOpen('Edit Bench set 1: 80 kg × 8 reps')).toBe(false);
+  await act(() => find('Remove Bench set 1').props.onPress());
+  expect(props.onRemoveSet).toHaveBeenCalledExactlyOnceWith('Bench', 'Bench-1');
+  expect(isOpen('Edit Bench set 1: 80 kg × 8 reps')).toBe(false);
+});
+
 it('unfolds changed exercises while keeping individual sets folded', async () => {
   expect(isOpen('Bench, 1 set')).toBe(false);
   await update(
@@ -219,6 +227,7 @@ it('accepts five rapid increments while saving without pulsing, scrolling or col
   const increase = find('Increase Bench set 1 by 1 reps');
   expect(increase.props.disabled).toBe(false);
   expect(find('Delete Bench from current workout').props.disabled).toBe(true);
+  expect(find('Remove Bench set 1').props.disabled).toBe(true);
   await act(() => {
     for (let tap = 0; tap < 5; tap++) increase.props.onPress();
   });
@@ -252,6 +261,33 @@ it('accepts five rapid increments while saving without pulsing, scrolling or col
     ),
   );
   expect(motion.start).toHaveBeenCalledTimes(2);
+});
+
+it('selects a weight increment without editing, then applies half, one and five kilogram changes', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  const setButton = renderer.root.findAll(
+    (node) =>
+      String(node.type) === 'Pressable' &&
+      node.props.accessibilityLabel?.startsWith('Edit Bench set 1'),
+  )[0];
+  await act(() => setButton.props.onPress());
+  for (const step of [0.5, 1, 5]) {
+    const selector = find(`Adjust Bench set 1 in steps of ${step} kg`);
+    const calls = props.onAdjustSet.mock.calls.length;
+    await act(() => selector.props.onPress());
+    expect(props.onAdjustSet).toHaveBeenCalledTimes(calls);
+    expect(
+      find(`Adjust Bench set 1 in steps of ${step} kg`).props.accessibilityState.selected,
+    ).toBe(true);
+    for (const direction of [-1, 1]) {
+      const button = find(`${direction < 0 ? 'Decrease' : 'Increase'} Bench set 1 by ${step} kg`);
+      expect(button.props.disabled).toBe(false);
+      await act(() => button.props.onPress());
+    }
+  }
+  expect(props.onAdjustSet.mock.calls).toEqual(
+    [-0.5, 0.5, -1, 1, -5, 5].map((delta) => ['Bench', 'Bench-1', 'weightKg', delta]),
+  );
 });
 
 it('updates both exercise badges while logging, including optimistic edits and removals', async () => {

@@ -5,6 +5,7 @@ import {
   type LayoutChangeEvent,
   ScrollView,
   View,
+  type ViewStyle,
 } from 'react-native';
 
 export function WorkoutChangePulse({
@@ -14,10 +15,10 @@ export function WorkoutChangePulse({
   contentRef,
   scrollRef,
   onLayout,
-  className,
+  style,
 }: {
   children: ReactNode;
-  className: string;
+  style: ViewStyle;
   pulseVersion: number;
   reveal?: boolean;
   contentRef?: RefObject<View | null>;
@@ -74,8 +75,7 @@ export function WorkoutChangePulse({
       ref={cardRef}
       collapsable={false}
       onLayout={onLayout}
-      style={{ transform: [{ scale }] }}
-      className={className}
+      style={[style, { transform: [{ scale }] }]}
     >
       {children}
     </Animated.View>

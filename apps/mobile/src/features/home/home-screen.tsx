@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { BrainCircuit, History, MessageSquareText, Settings, Plus } from 'lucide-react-native';
+import { BrainCircuit, History, Settings, Plus } from 'lucide-react-native';
 import { Button, IconButton, ModeSwitch, type FitnessMode } from '@fitness/ui';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PromptBar } from '@/components/prompt-bar';
@@ -13,7 +13,7 @@ import { ToolCallPills } from '@/components/tool-call-pills';
 import { AnalysisHistoryDrawer } from '@/components/analysis-history-drawer';
 import { useAppTheme } from '@/components/theme-provider';
 import { WorkoutTable } from '@/features/workout/workout-table';
-import { WorkoutReviewBar } from '@/features/workout/workout-review-bar';
+import { ChatActions } from '@/components/chat-actions';
 import { ProgressChart } from '@/components/progress-chart';
 import { WorkoutHistoryDrawer } from '@/components/workout-history-drawer';
 import { Screen } from '@/components/screen';
@@ -86,6 +86,7 @@ export default function HomeScreen() {
   }
   return (
     <Screen
+      compact
       headerActions={
         <>
           <IconButton
@@ -98,13 +99,6 @@ export default function HomeScreen() {
             }
           >
             <History color={colors.text} size={20} strokeWidth={2} />
-          </IconButton>
-          <IconButton
-            accessibilityLabel={conversationOpen ? 'Close chat' : 'Open chat'}
-            accessibilityState={{ expanded: conversationOpen }}
-            onPress={() => (conversationOpen ? setConversationOpen(false) : openConversation())}
-          >
-            <MessageSquareText color={colors.text} size={20} strokeWidth={2} />
           </IconButton>
           <IconButton
             accessibilityLabel="Open model settings"
@@ -131,10 +125,10 @@ export default function HomeScreen() {
         </>
       }
     >
-      <View className="px-5 pb-2">
-        <ModeSwitch mode={mode} onChange={changeMode} disabled={busy} />
+      <View className="px-5 pb-1">
+        <ModeSwitch mode={mode} onChange={changeMode} disabled={busy} compact />
         {session.draft?.editingWorkoutId ? (
-          <View className="mt-3 gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark">
+          <View className="mt-1.5 gap-1 rounded-xl bg-soft px-3 py-2 dark:bg-soft-dark">
             <Text className="font-bold text-ink dark:text-ink-dark">
               Editing saved workout ·{' '}
               {session.draft.performedAt !== undefined
@@ -146,6 +140,7 @@ export default function HomeScreen() {
             </Text>
             <Button
               variant="ghost"
+              className="min-h-8 py-1"
               disabled={busy}
               onPress={() => void session.cancelHistoryEdit()}
             >
@@ -166,14 +161,12 @@ export default function HomeScreen() {
               key={legacyConversation ? 'legacy' : (session.analysisId ?? 'new')}
               sessionId={legacyConversation ? undefined : session.analysisId}
               legacy={legacyConversation}
-              onClose={() => setConversationOpen(false)}
               visible={conversationOpen}
             />
           ) : session.draft ? (
             <WorkoutConversationDrawer
               key={session.draft._id}
               draftId={session.draft._id}
-              onClose={() => setConversationOpen(false)}
               visible={conversationOpen}
             />
           ) : null
@@ -227,17 +220,16 @@ export default function HomeScreen() {
             ) : null}
           </ScrollView>
         )}
-        {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
-          <WorkoutReviewBar
-            key={`review-${session.draft?._id}`}
-            busy={busy}
-            hasSets={setCount > 0}
-            editing={!!session.draft?.editingWorkoutId}
-            onChat={openConversation}
-            onReview={() => router.push('/workout/confirm')}
-          />
-        ) : null}
       </ChatPages>
+      <ChatActions
+        mode={mode}
+        chatOpen={conversationOpen}
+        busy={busy}
+        hasSets={setCount > 0}
+        editing={!!session.draft?.editingWorkoutId}
+        onToggleChat={() => (conversationOpen ? setConversationOpen(false) : openConversation())}
+        onReview={() => router.push('/workout/confirm')}
+      />
       <ErrorNotice message={session.error} />
       <PromptBar
         key={mode === 'analysis' ? `analysis-${analysisReset}` : mode}

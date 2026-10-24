@@ -7,12 +7,10 @@ export function AnalysisConversationDrawer({
   sessionId,
   legacy = false,
   visible,
-  onClose,
 }: {
   sessionId?: Id<'analysisSessions'>;
   legacy?: boolean;
   visible: boolean;
-  onClose: () => void;
 }) {
   const { results, status, loadMore } = usePaginatedQuery(
     api.aiMessages.analysisConversation,
@@ -26,7 +24,6 @@ export function AnalysisConversationDrawer({
       messages={!sessionId && !legacy ? [] : status === 'LoadingFirstPage' ? undefined : results}
       mode="analysis"
       visible={visible}
-      onClose={onClose}
       loadingOlder={status === 'LoadingMore'}
       onLoadOlder={status === 'CanLoadMore' ? () => loadMore(20) : undefined}
     />

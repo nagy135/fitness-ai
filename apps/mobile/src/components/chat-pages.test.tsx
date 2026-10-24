@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('react-native', () => ({
   View: 'View',
+  Platform: { OS: 'android' },
   Animated: {
     View: 'AnimatedView',
     Value: class {

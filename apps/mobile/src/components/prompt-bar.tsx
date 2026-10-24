@@ -62,7 +62,7 @@ export function PromptBar({
     elapsedSeconds: 0,
   });
   return (
-    <View className="relative bg-canvas px-4 pb-4 pt-3 dark:bg-canvas-dark">
+    <View className="relative bg-canvas px-4 pb-2 pt-1 dark:bg-canvas-dark">
       {status ? (
         <View
           accessibilityLiveRegion="polite"
@@ -133,7 +133,7 @@ export function PromptBar({
         </View>
       ) : null}
       <View
-        className={`min-h-14 flex-row items-end rounded-[26px] border bg-panel py-1.5 pl-4 pr-1.5 dark:bg-panel-dark ${focused ? 'border-accent dark:border-accent-dark' : 'border-line dark:border-line-dark'}`}
+        className={`min-h-[52px] flex-row items-end rounded-[26px] border bg-panel py-1 pl-4 pr-1 dark:bg-panel-dark ${focused ? 'border-accent dark:border-accent-dark' : 'border-line dark:border-line-dark'}`}
       >
         <TextInput
           accessibilityLabel={placeholder}

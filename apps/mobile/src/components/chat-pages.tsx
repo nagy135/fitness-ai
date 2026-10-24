@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
-import { AccessibilityInfo, Animated, BackHandler, Keyboard, View } from 'react-native';
+import { AccessibilityInfo, Animated, BackHandler, Keyboard, Platform, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 /** Keeps both pages mounted; manual controls and live agent commands select the page. */
@@ -39,7 +39,7 @@ export function ChatPages({
 
   useFocusEffect(
     useCallback(() => {
-      if (!open) return;
+      if (!open || Platform.OS !== 'android') return;
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
         onOpenChange(false);
         return true;

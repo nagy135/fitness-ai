@@ -3,11 +3,11 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Award, ChevronDown, ChevronUp, List, Trash2, Trophy } from 'lucide-react-native';
 import { useQuery } from 'convex/react';
 import { api } from '@fitness/convex/api';
-import { IconButton } from '@fitness/ui';
 import { exerciseRecordImprovements } from '@fitness/domain';
 import type { SetMeasurementField, WorkoutSet } from '@fitness/domain';
 import { useAppTheme } from '@/components/theme-provider';
-import { formatNumber, formatSet } from './history-format';
+import { formatSet } from './history-format';
+import { MeasurementStepper } from './measurement-stepper';
 import { SetMeasurement } from './set-measurement';
 import { WorkoutChangePulse } from './workout-change-pulse';
 import { SetOrderBadge } from './set-order-badge';
@@ -23,10 +23,10 @@ interface DraftExercise {
   sets: DraftSet[];
 }
 const measures = [
-  { field: 'weightKg', label: 'Weight', unit: 'kg', steps: [-5, -1, 1, 5] },
-  { field: 'reps', label: 'Repetitions', unit: 'reps', steps: [-1, 1] },
-  { field: 'durationSeconds', label: 'Duration', unit: 'sec', steps: [-10, -1, 1, 10] },
-  { field: 'distanceMeters', label: 'Distance', unit: 'm', steps: [-100, -10, 10, 100] },
+  { field: 'weightKg', label: 'Weight', unit: 'kg', steps: [0.5, 1, 5] },
+  { field: 'reps', label: 'Reps', unit: 'reps', steps: [1] },
+  { field: 'durationSeconds', label: 'Duration', unit: 'sec', steps: [1, 10] },
+  { field: 'distanceMeters', label: 'Distance', unit: 'm', steps: [10, 100] },
 ] as const;
 
 export function WorkoutTable({
@@ -71,6 +71,12 @@ export function WorkoutTable({
       ),
     ]),
   );
+  const [adjustmentSteps, setAdjustmentSteps] = useState<Record<SetMeasurementField, number>>({
+    weightKg: 1,
+    reps: 1,
+    durationSeconds: 1,
+    distanceMeters: 10,
+  });
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(() => new Set());
   const [previousExercises, setPreviousExercises] = useState(exercises);
@@ -128,11 +134,11 @@ export function WorkoutTable({
         ref={scrollRef}
         className="flex-1"
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="grow px-5 pb-6 pt-2"
+        contentContainerClassName="grow px-5 pb-2 pt-1"
       >
         {exercises.length === 0 ? null : (
           <View ref={contentRef} collapsable={false}>
-            <View className="mb-4 flex-row flex-wrap items-center justify-between gap-x-3">
+            <View className="mb-1 flex-row flex-wrap items-center justify-between gap-x-3">
               <Text className="text-sm text-muted dark:text-muted-dark">
                 {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} · {setCount}{' '}
                 {setCount === 1 ? 'set' : 'sets'}
@@ -148,7 +154,7 @@ export function WorkoutTable({
                   setChanges((previous) => ({ ...previous, setIds: [] }));
                   scrollRef.current?.scrollTo({ y: 0, animated: false });
                 }}
-                className="min-h-11 flex-row items-center gap-2 rounded-lg px-3 active:bg-soft dark:active:bg-soft-dark"
+                className="min-h-8 flex-row items-center gap-1.5 rounded-lg px-2 active:bg-soft dark:active:bg-soft-dark"
               >
                 <List size={18} color={colors.accent} />
                 <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
@@ -165,7 +171,14 @@ export function WorkoutTable({
               return (
                 <WorkoutChangePulse
                   key={exercise.rowId}
-                  className="mb-3 overflow-hidden rounded-[20px] bg-panel dark:bg-panel-dark"
+                  style={{
+                    marginBottom: 6,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                    overflow: 'hidden',
+                    backgroundColor: colors.panel,
+                  }}
                   pulseVersion={changes.ids.includes(exercise.rowId) ? changes.version : 0}
                   reveal={changes.ids[0] === exercise.rowId}
                   contentRef={contentRef}
@@ -181,7 +194,7 @@ export function WorkoutTable({
                     }
                   }}
                 >
-                  <View className="flex-row items-center pr-2">
+                  <View className="flex-row items-center pr-1">
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`${exercise.name}, ${countLabel}`}
@@ -203,7 +216,7 @@ export function WorkoutTable({
                           return next;
                         });
                       }}
-                      className="min-h-[68px] flex-1 flex-row items-center gap-3 px-4 py-4 active:bg-soft dark:active:bg-soft-dark"
+                      className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1.5 active:bg-soft dark:active:bg-soft-dark"
                     >
                       <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
                         {exercise.name}{' '}
@@ -224,24 +237,21 @@ export function WorkoutTable({
                       accessibilityState={{ disabled: destructiveBusy }}
                       disabled={destructiveBusy}
                       onPress={() => void onRemoveExercise(exercise.rowId)}
-                      className={`min-h-11 flex-row items-center gap-1 rounded-xl px-2 active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
+                      className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
                     >
-                      <Trash2 size={18} color={colors.danger} />
-                      <Text className="text-sm font-semibold text-danger dark:text-danger-dark">
-                        Delete
-                      </Text>
+                      <Trash2 size={17} color={colors.danger} />
                     </Pressable>
                   </View>
                   {records?.volume || records?.maxSet ? (
                     <View
                       accessibilityLiveRegion="polite"
-                      className="flex-row flex-wrap gap-2 px-4 pb-3"
+                      className="flex-row flex-wrap gap-1.5 px-3 pb-1"
                     >
                       {records.volume ? (
                         <View
                           accessible
                           accessibilityLabel={`Volume personal record for ${exercise.name}`}
-                          className="flex-row items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-1 dark:bg-accent-dark/15"
+                          className="flex-row items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 dark:bg-accent-dark/15"
                         >
                           <Trophy size={14} color={colors.accent} />
                           <Text className="text-xs font-semibold text-accent dark:text-accent-dark">
@@ -253,7 +263,7 @@ export function WorkoutTable({
                         <View
                           accessible
                           accessibilityLabel={`Max set personal record for ${exercise.name}`}
-                          className="flex-row items-center gap-1.5 rounded-full bg-highlight px-2.5 py-1 dark:bg-highlight-dark"
+                          className="flex-row items-center gap-1 rounded-full bg-highlight px-2 py-0.5 dark:bg-highlight-dark"
                         >
                           <Award size={14} color={colors.highlightInk} />
                           <Text className="text-xs font-semibold text-highlight-ink dark:text-highlight-ink-dark">
@@ -280,74 +290,69 @@ export function WorkoutTable({
                             key={set.setId}
                             className={index ? 'border-t border-line dark:border-line-dark' : ''}
                           >
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
-                              accessibilityState={{ expanded: open }}
-                              onPress={() =>
-                                setExpanded((previous) => {
-                                  const next = new Set(previous);
-                                  if (open) next.delete(set.setId);
-                                  else next.add(set.setId);
-                                  return next;
-                                })
-                              }
-                              className="min-h-[68px] flex-row items-center gap-3 px-4 py-3 active:bg-soft dark:active:bg-soft-dark"
-                            >
-                              <SetOrderBadge
-                                number={index + 1}
-                                version={changes.setIds.includes(set.setId) ? changes.version : 0}
-                              />
-                              <SetMeasurement set={set} className="flex-1 leading-9" />
-                              {open ? (
-                                <ChevronUp size={18} color={colors.muted} />
-                              ) : (
-                                <ChevronDown size={18} color={colors.muted} />
-                              )}
-                            </Pressable>
+                            <View className="flex-row items-center pr-1">
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
+                                accessibilityState={{ expanded: open }}
+                                onPress={() =>
+                                  setExpanded((previous) => {
+                                    const next = new Set(previous);
+                                    if (open) next.delete(set.setId);
+                                    else next.add(set.setId);
+                                    return next;
+                                  })
+                                }
+                                className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1 active:bg-soft dark:active:bg-soft-dark"
+                              >
+                                <SetOrderBadge
+                                  number={index + 1}
+                                  version={changes.setIds.includes(set.setId) ? changes.version : 0}
+                                />
+                                <SetMeasurement set={set} compact className="flex-1 leading-6" />
+                                {open ? (
+                                  <ChevronUp size={18} color={colors.muted} />
+                                ) : (
+                                  <ChevronDown size={18} color={colors.muted} />
+                                )}
+                              </Pressable>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Remove ${exercise.name} set ${index + 1}`}
+                                accessibilityHint="Removes this set from the draft"
+                                accessibilityState={{ disabled: destructiveBusy }}
+                                disabled={destructiveBusy}
+                                onPress={() => void onRemoveSet(exercise.rowId, set.setId)}
+                                className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
+                              >
+                                <Trash2 size={17} color={colors.danger} />
+                              </Pressable>
+                            </View>
                             {open ? (
-                              <View className="gap-3 border-t border-line px-3 py-3 dark:border-line-dark">
+                              <View className="gap-1.5 border-t border-line px-3 py-1.5 dark:border-line-dark">
                                 {measures.map(({ field, label, unit, steps }) => {
                                   const value = set[field];
                                   if (value === undefined) return null;
                                   return (
-                                    <View key={field} className="gap-2">
-                                      <View className="flex-row items-center justify-between px-1">
-                                        <Text className="text-sm text-muted dark:text-muted-dark">
-                                          {label}
-                                        </Text>
-                                        <Text className="text-base font-semibold text-ink dark:text-ink-dark">
-                                          {formatNumber(value)} {unit}
-                                        </Text>
-                                      </View>
-                                      <View className="flex-row gap-2">
-                                        {steps.map((step) => (
-                                          <Pressable
-                                            key={step}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={`${step < 0 ? 'Decrease' : 'Increase'} ${exercise.name} set ${index + 1} by ${Math.abs(step)} ${unit}`}
-                                            accessibilityState={{
-                                              disabled: busy || value + step <= 0,
-                                            }}
-                                            disabled={busy || value + step <= 0}
-                                            onPress={() =>
-                                              void onAdjustSet(
-                                                exercise.rowId,
-                                                set.setId,
-                                                field,
-                                                step,
-                                              )
-                                            }
-                                            className={`min-h-11 flex-1 items-center justify-center rounded-lg bg-canvas dark:bg-canvas-dark ${busy || value + step <= 0 ? 'opacity-35' : ''}`}
-                                          >
-                                            <Text className="text-sm font-semibold text-ink dark:text-ink-dark">
-                                              {step > 0 ? '+' : '−'}
-                                              {Math.abs(step)}
-                                            </Text>
-                                          </Pressable>
-                                        ))}
-                                      </View>
-                                    </View>
+                                    <MeasurementStepper
+                                      key={field}
+                                      label={label}
+                                      unit={unit}
+                                      value={value}
+                                      steps={steps}
+                                      step={adjustmentSteps[field]}
+                                      busy={busy}
+                                      context={`${exercise.name} set ${index + 1}`}
+                                      onStepChange={(step) =>
+                                        setAdjustmentSteps((previous) => ({
+                                          ...previous,
+                                          [field]: step,
+                                        }))
+                                      }
+                                      onAdjust={(delta) =>
+                                        void onAdjustSet(exercise.rowId, set.setId, field, delta)
+                                      }
+                                    />
                                   );
                                 })}
                                 {set.notes ? (
@@ -355,32 +360,20 @@ export function WorkoutTable({
                                     {set.notes}
                                   </Text>
                                 ) : null}
-                                <View className="flex-row items-center justify-between">
-                                  <Text className="text-sm text-muted dark:text-muted-dark">
-                                    Remove this set
-                                  </Text>
-                                  <IconButton
-                                    accessibilityLabel={`Remove ${exercise.name} set ${index + 1}`}
-                                    disabled={destructiveBusy}
-                                    onPress={() => void onRemoveSet(exercise.rowId, set.setId)}
-                                  >
-                                    <Trash2 size={18} color={colors.danger} />
-                                  </IconButton>
-                                </View>
                               </View>
                             ) : null}
                           </View>
                         );
                       })}
                       {!exercise.sets.length ? (
-                        <View className="gap-3 p-4">
+                        <View className="gap-1 px-3 py-2">
                           <Text className="text-sm text-muted dark:text-muted-dark">
                             Log a set below, or remove this exercise before saving.
                           </Text>
                         </View>
                       ) : null}
                       {exercise.notes ? (
-                        <Text className="px-4 pb-4 pt-2 text-sm leading-5 text-muted dark:text-muted-dark">
+                        <Text className="px-3 pb-2 pt-1 text-sm leading-5 text-muted dark:text-muted-dark">
                           {exercise.notes}
                         </Text>
                       ) : null}

@@ -2,6 +2,9 @@ import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SetOrderBadge } from './set-order-badge';
+vi.mock('@/components/theme-provider', () => ({
+  useAppTheme: () => ({ colors: { soft: '#e1e8dc' } }),
+}));
 const mocks = vi.hoisted(() => ({
   timing: vi.fn(),
   start: vi.fn(),

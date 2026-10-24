@@ -38,13 +38,11 @@ it.each(['workout', 'analysis'] as const)(
     const toolCalls = [
       { toolCallId: 'lookup', toolName: 'getExerciseHistory', input: '{}', output: '[]' },
     ];
-    const onClose = vi.fn();
     await act(() => {
       renderer = create(
         createElement(ConversationDrawer, {
           mode,
           visible: true,
-          onClose,
           messages: [
             { _id: 'answer', role: 'assistant', text: 'Latest answer', toolCalls, createdAt: 3 },
             { _id: 'question', role: 'user', text: 'Latest question', createdAt: 2 },
@@ -63,13 +61,8 @@ it.each(['workout', 'analysis'] as const)(
     expect(rendered.indexOf('getExerciseHistory')).toBeLessThan(rendered.indexOf('Latest answer'));
     expect(renderer.root.findAllByType('ToolCallPills' as never)).toHaveLength(1);
     expect(renderer.root.findByType('ToolCallPills' as never).props).toEqual({ calls: toolCalls });
-    await act(() =>
-      renderer.root
-        .findByProps({
-          accessibilityLabel: mode === 'workout' ? 'Back to workout' : 'Back to analysis',
-        })
-        .props.onPress(),
-    );
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(renderer.root.findAllByType('IconButton' as never)).toHaveLength(0);
+    expect(renderer.root.findAllByType('ArrowLeft' as never)).toHaveLength(0);
+    expect(renderer.root.findAllByType('DisplayText' as never)).toHaveLength(0);
   },
 );

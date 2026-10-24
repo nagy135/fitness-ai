@@ -7,9 +7,11 @@ export function ModeSwitch({
   mode,
   onChange,
   disabled = false,
+  compact = false,
 }: {
   mode: FitnessMode;
   disabled?: boolean;
+  compact?: boolean;
   onChange: (mode: FitnessMode) => void;
 }) {
   return (
@@ -23,7 +25,8 @@ export function ModeSwitch({
             accessibilityState={{ selected, disabled }}
             disabled={disabled}
             className={cn(
-              'min-h-12 flex-1 items-center border-b-[3px] py-3',
+              'flex-1 items-center justify-center border-b-[3px]',
+              compact ? 'min-h-10 py-1.5' : 'min-h-12 py-3',
               selected ? 'border-accent dark:border-accent-dark' : 'border-transparent',
             )}
             onPress={() => onChange(option)}

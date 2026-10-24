@@ -6,11 +6,9 @@ import { ConversationDrawer } from './conversation-drawer';
 export function WorkoutConversationDrawer({
   draftId,
   visible,
-  onClose,
 }: {
   draftId: Id<'workoutDrafts'>;
   visible: boolean;
-  onClose: () => void;
 }) {
   const { results, status, loadMore } = usePaginatedQuery(
     api.aiMessages.workoutConversation,
@@ -23,7 +21,6 @@ export function WorkoutConversationDrawer({
       messages={status === 'LoadingFirstPage' ? undefined : results}
       mode="workout"
       visible={visible}
-      onClose={onClose}
       loadingOlder={status === 'LoadingMore'}
       onLoadOlder={status === 'CanLoadMore' ? () => loadMore(20) : undefined}
     />

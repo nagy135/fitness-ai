@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import HomeScreen from './home-screen';
+import { ChatActions } from '../../components/chat-actions';
 import type { Doc, Id } from '@fitness/convex/data-model';
 
 const state = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const state = vi.hoisted(() => ({
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
   ScrollView: 'ScrollView',
+  Pressable: 'Pressable',
   Text: 'Text',
   View: 'View',
 }));
@@ -28,6 +30,9 @@ vi.mock('lucide-react-native', () => ({
   MessageSquareText: 'MessageSquareText',
   Settings: 'Settings',
   Plus: 'Plus',
+  Dumbbell: 'Dumbbell',
+  ChartNoAxesCombined: 'ChartNoAxesCombined',
+  ChevronRight: 'ChevronRight',
 }));
 vi.mock('@fitness/ui', () => ({
   Button: 'Button',
@@ -56,8 +61,9 @@ vi.mock('@/components/analysis-history-drawer', () => ({
   AnalysisHistoryDrawer: 'AnalysisHistory',
 }));
 vi.mock('@/components/theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
+vi.mock('../../components/theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
+vi.mock('@/components/chat-actions', async () => import('../../components/chat-actions'));
 vi.mock('@/features/workout/workout-table', () => ({ WorkoutTable: 'WorkoutTable' }));
-vi.mock('@/features/workout/workout-review-bar', () => ({ WorkoutReviewBar: 'WorkoutReview' }));
 vi.mock('@/components/progress-chart', () => ({ ProgressChart: 'ProgressChart' }));
 vi.mock('@/components/workout-history-drawer', () => ({ WorkoutHistoryDrawer: 'WorkoutHistory' }));
 vi.mock('@/components/error-notice', () => ({ ErrorNotice: 'ErrorNotice' }));
@@ -83,7 +89,8 @@ vi.mock('./use-prompt-queue', () => ({
 }));
 
 let renderer: ReactTestRenderer;
-const find = (type: string) => renderer.root.findByType(type as never);
+const find = (type: string) =>
+  renderer.root.findByType(type === 'ChatActions' ? ChatActions : (type as never));
 async function mount() {
   await act(() => {
     renderer = create(createElement(HomeScreen));
@@ -112,22 +119,31 @@ it.each(['workout', 'analysis'] as const)(
     const prompt = find('PromptBar');
     const modes = find('ModeSwitch');
     const pages = find('ChatPages');
+    const actions = find('ChatActions');
     expect(pages.findAllByType('PromptBar' as never)).toHaveLength(0);
     expect(pages.findAllByType('ModeSwitch' as never)).toHaveLength(0);
     expect(pages.findAllByType('IconButton' as never)).toHaveLength(0);
+    expect(pages.findAllByType(ChatActions)).toHaveLength(0);
     await act(() => prompt.props.onChangeText('Follow-up'));
     await open();
     expect(find('ChatPages').props.open).toBe(true);
     expect(find('PromptBar')).toBe(prompt);
     expect(find('ModeSwitch')).toBe(modes);
+    expect(find('ChatActions')).toBe(actions);
+    expect(actions.props.chatOpen).toBe(true);
     expect(prompt.props.value).toBe('Follow-up');
     expect(prompt.props.voiceEnabled).toBe(true);
     await act(() => prompt.props.onSubmit('Follow-up'));
     expect(state.enqueue).toHaveBeenCalledWith('Follow-up');
     await act(() =>
-      renderer.root.findByProps({ accessibilityLabel: 'Close chat' }).props.onPress(),
+      renderer.root
+        .findByProps({
+          accessibilityLabel: mode === 'workout' ? 'Back to workout' : 'Back to analysis',
+        })
+        .props.onPress(),
     );
     expect(find('ChatPages').props.open).toBe(false);
+    expect(find('ChatActions')).toBe(actions);
   },
 );
 
@@ -155,13 +171,21 @@ it('still requires workout review when switching out of an unsaved workout from 
   expect(state.setParams).not.toHaveBeenCalled();
 });
 
-it('opens the current workout chat from the bottom Chat button', async () => {
+it('keeps the same bottom toggle and review controls available in tracking and chat', async () => {
   state.exercises = [{ sets: [{ reps: 10 }] }];
   await mount();
-  await act(() => find('WorkoutReview').props.onChat());
+  const actions = find('ChatActions');
+  const review = renderer.root.findByProps({ accessibilityLabel: 'Review workout' });
+  expect(review.props.disabled).toBe(false);
+  await act(() => actions.props.onToggleChat());
   expect(find('ChatPages').props.open).toBe(true);
   expect(find('WorkoutConversation').props.visible).toBe(true);
-  await act(() => find('WorkoutConversation').props.onClose());
+  expect(find('ChatActions')).toBe(actions);
+  expect(renderer.root.findByProps({ accessibilityLabel: 'Review workout' })).toBe(review);
+  expect(review.props.disabled).toBe(false);
+  await act(() => review.props.onPress());
+  expect(state.push).toHaveBeenCalledWith('/workout/confirm');
+  await act(() => actions.props.onToggleChat());
   expect(find('ChatPages').props.open).toBe(false);
 });
 

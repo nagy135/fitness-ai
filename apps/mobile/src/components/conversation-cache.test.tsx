@@ -77,20 +77,17 @@ vi.mock('./analysis-markdown-dom', async () => {
 });
 
 let renderer: ReactTestRenderer;
-const close = vi.fn();
 function panel(mode: 'workout' | 'analysis', visible: boolean, id = 'current') {
   return mode === 'workout'
     ? createElement(WorkoutConversationDrawer, {
         key: id,
         draftId: id as Id<'workoutDrafts'>,
         visible,
-        onClose: close,
       })
     : createElement(AnalysisConversationDrawer, {
         key: id,
         sessionId: id as Id<'analysisSessions'>,
         visible,
-        onClose: close,
       });
 }
 beforeEach(() => {
