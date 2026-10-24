@@ -1,4 +1,7 @@
 export const workoutToolNames = [
+  'focusChat',
+  'defocusChat',
+  'askUser',
   'getCurrentDraft',
   'getRecentWorkouts',
   'getWorkout',
@@ -17,6 +20,9 @@ export const workoutToolNames = [
 ] as const;
 
 export const analysisToolNames = [
+  'focusChat',
+  'defocusChat',
+  'askUser',
   'getRecentWorkouts',
   'getWorkout',
   'searchWorkouts',

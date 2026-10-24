@@ -145,6 +145,35 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_user_updated', ['userId', 'updatedAt']),
 
+  aiChatFocus: defineTable({
+    userId: v.id('userProfiles'),
+    mode: v.union(v.literal('workout'), v.literal('analysis')),
+    draftId: v.optional(v.id('workoutDrafts')),
+    sessionId: v.optional(v.id('analysisSessions')),
+    open: v.boolean(),
+    version: v.number(),
+  }).index('by_user', ['userId']),
+
+  aiQuestions: defineTable({
+    userId: v.id('userProfiles'),
+    mode: v.union(v.literal('workout'), v.literal('analysis')),
+    requestId: v.optional(v.id('workoutRequests')),
+    sessionId: v.optional(v.id('analysisSessions')),
+    question: v.string(),
+    options: v.array(v.string()),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('answered'),
+      v.literal('dismissed'),
+      v.literal('expired'),
+    ),
+    answer: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_user_status', ['userId', 'status'])
+    .index('by_request', ['requestId']),
+
   aiMessages: defineTable({
     userId: v.id('userProfiles'),
     mode: v.union(v.literal('workout'), v.literal('analysis')),

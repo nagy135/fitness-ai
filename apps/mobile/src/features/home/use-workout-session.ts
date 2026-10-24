@@ -59,6 +59,7 @@ export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
   const workoutAI = useAction(api.ai.workout.respond);
   const analysisAI = useAction(api.ai.analysis.respond);
   const draft = useQuery(api.workoutDrafts.current, ready && isAuthenticated ? {} : 'skip');
+  const chatFocus = useQuery(api.aiChatFocus.latest, ready && isAuthenticated ? {} : 'skip');
   // The reply strip uses a stable query; the conversation has its own pages.
   const messages = useQuery(
     api.aiMessages.recent,
@@ -180,6 +181,7 @@ export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
     busy,
     savingSets,
     draft,
+    chatFocus,
     messages,
     workoutExchange: latestWorkoutExchange(messages),
     workouts,

@@ -327,6 +327,10 @@ analytics table; capture the stream during a test if you need to keep the result
 Workout logging includes the entire conversation for the selected draft in
 chronological order, recovered from saved request records, plus the fresh current
 draft with all currently logged exercises and sets, and the exercise catalog.
+The workout prompt requires a fresh `getCurrentDraft` read before every final
+reply, after draft changes, and after a popup answer before dependent edits.
+That latest saved draft is the authoritative pre-answer state: manual edits and
+deletions override earlier conversation, the initial snapshot, and older tool results.
 Clarification answers retain earlier reps, weights, and exercise names. Saved
 workouts and exercise history are retrieved on demand through read-only tools.
 Questions such as “What did I log last time on this exercise?” use the previous
@@ -365,6 +369,28 @@ The latest session is restored when the app opens. **Earlier analysis messages**
 conversations from before sessions were introduced accessible. Deploy the updated
 Convex schema and functions before using this feature in a new mobile build.
 
+Both AI modes can call `askUser` when they need a clarification. A compact card
+appears at the top right of the app; tap a suggested answer or type your own and
+tap **Send answer**. The answer goes directly back to the running AI tool, which
+continues the original request without opening Chat. Minimize the card to keep
+working, or dismiss it to stop the follow-up. Questions expire after three minutes
+and share a six-minute waiting budget per request. Clarifications are retained
+in the original workout or analysis conversation. Deploy the updated Convex
+schema/functions and ship the updated mobile bundle together for this feature.
+
+The AI can also call `focusChat` to open the current conversation or `defocusChat`
+to return to the exercise table or analysis overview. These requests arrive live,
+without switching modes or clearing the prompt. Each command applies once to its
+original draft or analysis session; reopening the app, refreshing a reply, or
+switching sessions does not replay it. Manual Chat controls remain available.
+There is no automatic navigation based on a reply's text or its read/write tools;
+the app changes Chat visibility only through explicit agent commands or user actions.
+In workout mode, the system prompt requires `defocusChat` after a successful
+draft change and `focusChat` when no draft change succeeded. A successful change
+takes precedence over reads or later failures; existing sets and catalog-only
+changes do not count. Explicit user requests to open/close Chat take precedence,
+and clarification popups keep the current view while waiting or when dismissed.
+
 New assistant replies save the tools they executed, including each call's full
 input and result (or error). Tap a tool-name pill in an analysis answer or
 **Chat** to open its payload; close it with **×**,
@@ -372,12 +398,6 @@ the backdrop, or the system back action. Tool details remain available after
 reopening a saved analysis or retrieving a completed workout request. Older
 replies without saved tool details continue to show their text and charts.
 Deploy the updated Convex schema and functions to start recording these details.
-The latest workout reply slides into **Chat** automatically when it only reads data
-or uses no tools. Any exercise-changing tool call keeps the exercise view open,
-including catalog creation/updates, draft edits, and failed write attempts.
-One write call takes precedence over any number of read calls. Unknown tools also
-keep the exercise view open. You can always open **Chat** manually and return
-with its back arrow; refreshing the same reply does not navigate again.
 
 Manual set adjustment buttons update immediately and accept repeated taps while
 the changes save. Each tap is saved as an increment, so rapid taps accumulate;

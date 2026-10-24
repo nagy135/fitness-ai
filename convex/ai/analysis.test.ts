@@ -113,6 +113,23 @@ describe('analysis model context', () => {
     expect(generateText).toHaveBeenCalledTimes(1);
   });
 
+  it('does not treat chat focus commands as retrieved chart data', async () => {
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'No training data is available.',
+      steps: [
+        {
+          toolCalls: [],
+          toolResults: [
+            { toolName: 'focusChat', output: { status: 'requested', open: true, version: 1 } },
+            { toolName: 'defocusChat', output: { status: 'requested', open: false, version: 2 } },
+          ],
+        },
+      ],
+    } as never);
+    await run(ctx, { prompt: 'Plot my squat reps' });
+    expect(generateText).toHaveBeenCalledTimes(1);
+  });
+
   it('includes conversation context and fresh retrieved data in chart correction', async () => {
     history = [{ role: 'user', content: 'Use pounds for my charts' }];
     const retrieved = [{ name: 'getExerciseHistory', output: [{ reps: 10 }] }];

@@ -27,6 +27,8 @@ import { refs } from './references';
 import { observeAI } from './telemetry';
 import { createUserModel } from './userModel';
 import { ToolCallRecorder } from './toolCallRecorder';
+import { createAskUser } from './askUser';
+import { createChatFocusTools } from './chatFocus';
 
 const emptyInput = z.object({}).strict();
 
@@ -42,6 +44,7 @@ export const respond = action({
         return { text: started.request.text!, toolCalls: started.request.toolCalls ?? [] };
       }
       const toolCalls = new ToolCallRecorder();
+      const questions = createAskUser(ctx, { mode: 'workout', requestId: args.requestId });
       try {
         const [profile, catalog, draft, conversation] = await Promise.all([
           trace.time('load_profile', () => ctx.runQuery(refs.profileCurrent, {})),
@@ -58,6 +61,8 @@ export const respond = action({
         // retry must not turn a successful addition into an apparent failure.
         let addition: { input: string; result: Promise<string[]> } | undefined;
         const tools = {
+          ...createChatFocusTools(ctx, { requestId: args.requestId }),
+          askUser: questions.tool,
           getRecentWorkouts: tool({
             description:
               'Read recent confirmed workouts when the current request refers to past training. Use a small limit.',
@@ -96,7 +101,7 @@ export const respond = action({
           }),
           getCurrentDraft: tool({
             description:
-              'Read the current saved draft, including exercise row IDs and set IDs. CURRENT DRAFT already contains fresh state and IDs for corrections. Read again only after an uncertain tool result or when a needed ID is missing; do not routinely re-read before edits or after successful writes. Never replay or delete saved additions to recover from an error.',
+              'Read the latest saved workout draft, including exercise row IDs and set IDs. You MUST call this as your final workout-data operation before every final reply, after all draft changes, and respect the result as the authoritative pre-answer state. Also refresh after an askUser answer before dependent edits, when a result is uncertain, or when a needed ID is missing. The user may change the workout at any time: the latest state overrides the initial CURRENT DRAFT snapshot, conversation, and earlier tool results. Preserve manual edits and deletions; never replay additions, restore stale values, or delete saved additions to recover from an error.',
             inputSchema: emptyInput,
             execute: () => ctx.runQuery(refs.draftCurrent, {}),
           }),
@@ -222,11 +227,13 @@ export const respond = action({
             system: `${workoutSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG: ${JSON.stringify(catalog)}\nCURRENT DRAFT: ${JSON.stringify(draft)}`,
             messages,
             tools,
-            stopWhen: stepCountIs(8),
+            stopWhen: [stepCountIs(8), questions.stopped],
           }),
         );
 
-        const text = result.text.trim() || 'Workout updated.';
+        const text = questions.stopped()
+          ? questions.stopText()
+          : result.text.trim() || 'Workout updated.';
         await trace.time('save_response', () =>
           ctx.runMutation(internal.aiMessages.finishWorkoutRequest, {
             ...args,

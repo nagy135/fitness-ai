@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type PropsWithChildren, type ReactNod
 import { AccessibilityInfo, Animated, BackHandler, Keyboard, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-/** Keeps both pages mounted and slides between them only when a button is pressed. */
+/** Keeps both pages mounted; manual controls and live agent commands select the page. */
 export function ChatPages({
   children,
   panel,

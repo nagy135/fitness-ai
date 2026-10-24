@@ -20,6 +20,8 @@ import { refs } from './references';
 import { observeAI } from './telemetry';
 import { createUserModel } from './userModel';
 import { ToolCallRecorder } from './toolCallRecorder';
+import { createAskUser } from './askUser';
+import { createChatFocusTools } from './chatFocus';
 
 export const respond = action({
   args: { prompt: v.string(), sessionId: v.optional(v.id('analysisSessions')) },
@@ -64,7 +66,10 @@ export const respond = action({
         exerciseId: input.exerciseId as Id<'exercises'>,
       });
       let chart: AnalysisChart | undefined;
+      const questions = createAskUser(ctx, { mode: 'analysis', sessionId });
       const tools = {
+        ...createChatFocusTools(ctx, { sessionId }),
+        askUser: questions.tool,
         searchExercises: tool({
           description: 'Resolve the user wording to an exercise in their personal catalog.',
           inputSchema: SearchExercisesInputSchema,
@@ -150,13 +155,16 @@ export const respond = action({
           system,
           messages,
           tools,
-          stopWhen: stepCountIs(8),
+          stopWhen: [stepCountIs(8), questions.stopped],
         }),
       );
-      if (graphRequested && !chart) {
+      if (graphRequested && !chart && !questions.stopped()) {
         const retrievedData = result.steps.flatMap((step) =>
           step.toolResults
-            .filter((toolResult) => toolResult.toolName !== 'renderChart')
+            .filter(
+              (toolResult) =>
+                !['renderChart', 'focusChat', 'defocusChat'].includes(toolResult.toolName),
+            )
             .map((toolResult) => ({ name: toolResult.toolName, output: toolResult.output })),
         );
         if (retrievedData.length) {
@@ -181,14 +189,16 @@ export const respond = action({
           ? chart.series.reduce((total, series) => total + series.points.length, 0)
           : chart.points.length
         : 0;
-      const text = chart
-        ? chartPointCount
-          ? result.text.trim() || `Here is ${chart.title}.`
-          : `There is no retrieved data to plot for ${chart.title}.`
-        : result.text.trim() ||
-          (graphRequested
-            ? 'I could not find data to plot. Try naming an exercise or a date range.'
-            : 'I could not produce an analysis from the retrieved data.');
+      const text = questions.stopped()
+        ? questions.stopText()
+        : chart
+          ? chartPointCount
+            ? result.text.trim() || `Here is ${chart.title}.`
+            : `There is no retrieved data to plot for ${chart.title}.`
+          : result.text.trim() ||
+            (graphRequested
+              ? 'I could not find data to plot. Try naming an exercise or a date range.'
+              : 'I could not produce an analysis from the retrieved data.');
       await trace.time('save_response', () =>
         ctx.runMutation(refs.messageAppend, {
           mode: 'analysis',

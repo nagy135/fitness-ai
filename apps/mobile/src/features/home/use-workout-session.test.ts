@@ -32,6 +32,7 @@ vi.mock('@fitness/convex/api', () => ({
       analysisSession: 'analysisSession',
     },
     ai: { workout: { respond: 'workoutAI' }, analysis: { respond: 'analysisAI' } },
+    aiChatFocus: { latest: 'chatFocus' },
   },
 }));
 vi.mock('convex/react', () => ({
@@ -42,11 +43,13 @@ vi.mock('convex/react', () => ({
   useQuery: (ref: string, args: unknown) =>
     args === 'skip'
       ? undefined
-      : ref === 'analysisSession'
-        ? mocks.analysis
-        : ref === 'draft'
-          ? { _id: 'draft-1', exercises: [] }
-          : [],
+      : ref === 'chatFocus'
+        ? null
+        : ref === 'analysisSession'
+          ? mocks.analysis
+          : ref === 'draft'
+            ? { _id: 'draft-1', exercises: [] }
+            : [],
 }));
 let session: ReturnType<typeof useWorkoutSession>;
 let renderer: ReactTestRenderer;

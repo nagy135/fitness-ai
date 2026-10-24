@@ -433,6 +433,45 @@ describe('durable workout submissions', () => {
 });
 
 describe('workout model conversation context', () => {
+  it('retains popup questions and answers in model context and workout chat', async () => {
+    const first = await running('Log 10 reps');
+    await finish(ctx, {
+      requestId: first,
+      text: 'Added 10 push-ups.',
+      failed: false,
+      toolCalls: [
+        {
+          toolCallId: 'question',
+          toolName: 'askUser',
+          input: '{}',
+          output: JSON.stringify({
+            question: 'Which exercise?',
+            status: 'answered',
+            answer: 'Push-ups',
+          }),
+        },
+      ],
+    });
+    await acknowledge(ctx, { requestId: first });
+    const second = await running('Make that twelve');
+    expect(await context(ctx, { requestId: second })).toEqual([
+      { role: 'user', content: 'Log 10 reps' },
+      { role: 'assistant', content: 'Which exercise?' },
+      { role: 'user', content: 'Push-ups' },
+      { role: 'assistant', content: 'Added 10 push-ups.' },
+    ]);
+    const chat = await conversation(ctx, {
+      draftId,
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(chat.page.map(({ role, text }) => ({ role, text }))).toEqual([
+      { role: 'user', text: 'Make that twelve' },
+      { role: 'assistant', text: 'Added 10 push-ups.' },
+      { role: 'user', text: 'Push-ups' },
+      { role: 'assistant', text: 'Which exercise?' },
+      { role: 'user', text: 'Log 10 reps' },
+    ]);
+  });
   it('retains measurements and the clarification question across acknowledged requests', async () => {
     const first = await running('10 reps');
     await finish(ctx, { requestId: first, text: 'Which exercise?', failed: false });

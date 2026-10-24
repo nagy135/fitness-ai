@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import { authClient } from '@/auth/client';
 import { ThemeProvider, useAppTheme } from '@/components/theme-provider';
 import { LoadingScreen } from '@/components/loading-screen';
+import { AgentQuestionPopup } from '@/components/agent-question-popup';
 
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
 if (!convexUrl) throw new Error('EXPO_PUBLIC_CONVEX_URL is required');
@@ -41,6 +42,7 @@ function AppNavigator() {
           <Stack.Screen name="workout/confirm" options={{ presentation: 'modal' }} />
         </Stack.Protected>
       </Stack>
+      {isAuthenticated ? <AgentQuestionPopup /> : null}
     </>
   );
 }

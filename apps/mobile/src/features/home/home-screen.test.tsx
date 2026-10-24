@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import HomeScreen from './home-screen';
+import type { Doc, Id } from '@fitness/convex/data-model';
 
 const state = vi.hoisted(() => ({
   mode: 'workout' as 'workout' | 'analysis',
@@ -9,6 +10,7 @@ const state = vi.hoisted(() => ({
   setParams: vi.fn(),
   push: vi.fn(),
   enqueue: vi.fn(async () => true),
+  chatFocus: null as Doc<'aiChatFocus'> | null | undefined,
 }));
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
@@ -70,6 +72,7 @@ vi.mock('./use-workout-session', () => ({
     savingSets: false,
     analysisLoading: false,
     analysisId: 'analysis',
+    chatFocus: state.chatFocus,
     response: { text: 'Answer', question: 'Question' },
     submitPrompt: vi.fn(),
     resetAnalysis: vi.fn(),
@@ -94,6 +97,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.mode = 'workout';
   state.exercises = [];
+  state.chatFocus = null;
 });
 afterEach(async () => {
   await act(() => renderer?.unmount());
@@ -159,4 +163,78 @@ it('opens the current workout chat from the bottom Chat button', async () => {
   expect(find('WorkoutConversation').props.visible).toBe(true);
   await act(() => find('WorkoutConversation').props.onClose());
   expect(find('ChatPages').props.open).toBe(false);
+});
+
+it.each(['workout', 'analysis'] as const)(
+  'applies live focus and defocus commands in %s without changing modes or clearing the prompt',
+  async (mode) => {
+    state.mode = mode;
+    await mount();
+    await act(() => find('PromptBar').props.onChangeText('Keep my prompt'));
+    const command = {
+      _id: 'focus',
+      _creationTime: 0,
+      userId: 'user',
+      mode,
+      ...(mode === 'workout' ? { draftId: 'draft' } : { sessionId: 'analysis' }),
+      open: true,
+      version: 1,
+    } as Doc<'aiChatFocus'>;
+    state.chatFocus = command;
+    await act(() => renderer.update(createElement(HomeScreen)));
+    expect(find('ChatPages').props.open).toBe(true);
+    expect(
+      find(mode === 'workout' ? 'WorkoutConversation' : 'AnalysisConversation').props.visible,
+    ).toBe(true);
+    await act(() => find('ChatPages').props.onOpenChange(false));
+    state.chatFocus = { ...command };
+    await act(() => renderer.update(createElement(HomeScreen)));
+    expect(find('ChatPages').props.open).toBe(false);
+    await open();
+    state.chatFocus = { ...command, open: false, version: 2 };
+    await act(() => renderer.update(createElement(HomeScreen)));
+    expect(find('ChatPages').props.open).toBe(false);
+    expect(find('PromptBar').props.value).toBe('Keep my prompt');
+    expect(state.push).not.toHaveBeenCalled();
+    expect(state.setParams).not.toHaveBeenCalled();
+  },
+);
+
+it('ignores historical focus commands and commands for another conversation', async () => {
+  state.chatFocus = {
+    mode: 'workout',
+    draftId: 'draft',
+    open: true,
+    version: 8,
+  } as Doc<'aiChatFocus'>;
+  await mount();
+  expect(find('ChatPages').props.open).toBe(false);
+  state.chatFocus = {
+    ...state.chatFocus!,
+    draftId: 'another-draft' as Id<'workoutDrafts'>,
+    version: 9,
+  };
+  await act(() => renderer.update(createElement(HomeScreen)));
+  expect(find('ChatPages').props.open).toBe(false);
+  state.chatFocus = {
+    ...state.chatFocus!,
+    mode: 'analysis',
+    sessionId: 'analysis' as Id<'analysisSessions'>,
+    version: 10,
+  };
+  await act(() => renderer.update(createElement(HomeScreen)));
+  expect(find('ChatPages').props.open).toBe(false);
+  state.mode = 'analysis';
+  await act(() => renderer.update(createElement(HomeScreen)));
+  expect(find('ChatPages').props.open).toBe(false);
+});
+
+it('waits for the initial focus subscription before enabling requests', async () => {
+  state.chatFocus = undefined;
+  await mount();
+  expect(find('LoadingScreen')).toBeTruthy();
+  expect(renderer.root.findAllByType('PromptBar' as never)).toHaveLength(0);
+  state.chatFocus = null;
+  await act(() => renderer.update(createElement(HomeScreen)));
+  expect(find('PromptBar')).toBeTruthy();
 });

@@ -56,3 +56,31 @@ CONVEX_ENV_FILE=.env.production.local nix develop -c ./scripts/convex-self-hoste
 ```
 
 System prompts live in `packages/ai/src/prompts.ts`; workout tool descriptions live in `convex/ai/workout.ts`. Prompt-only changes take effect through a Convex functions deployment and work with the installed APK. Routine application deployments do not require recreating the Docker backend, rebuilding NixOS, or deleting its data volume. Infrastructure configuration lives in `~/Code/nix-server` on the Mac and `/etc/nixos` on nixpi.
+
+After deployment, verify the production checkout's `HEAD` matches the pushed
+commit, both Docker systemd units above are active, and
+`curl --fail https://fitness-ai.infiniter.tech/version` succeeds. Use
+`scripts/convex-self-hosted.sh function-spec` with the production environment to
+verify newly deployed query/mutation/action names without changing user data.
+
+## Signed Android APK delivery
+
+Build the `preview` APK locally on the Mac from the repository root. The Android
+SDK is at `~/Library/Android/sdk`; use the pinned Nix development shell. Supply
+the production public endpoints explicitly so the APK cannot pick up development
+URLs from a local environment file:
+
+```bash
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+EXPO_PUBLIC_CONVEX_URL=https://fitness-ai.infiniter.tech \
+EXPO_PUBLIC_CONVEX_SITE_URL=https://fitness-ai-auth.infiniter.tech \
+nix develop -c sh -c 'cd apps/mobile && npx eas-cli@latest build --platform android --profile preview --local --non-interactive --output ../../dist/fitness-ai-agent-tools.apk'
+```
+
+EAS downloads the existing signing credentials and increments
+`apps/mobile/app.json`'s Android `versionCode`; commit that increment so subsequent
+builds can upgrade this APK. Keep signing credentials out of Git and logs. Verify
+the resulting package/version with Android SDK `aapt` and verify its signature
+with `apksigner` before sharing. Deploy the matching backend before distributing
+an APK that uses new Convex functions. Only upload the APK to the public file
+relay when requested; the relay's default expiry is one hour.

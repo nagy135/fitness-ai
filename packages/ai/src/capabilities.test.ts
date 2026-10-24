@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AddExercisesToDraftInputSchema,
+  AskUserSchema,
   RenderChartSchema,
   analysisToolNames,
   capabilityMatrix,
@@ -8,6 +9,19 @@ import {
 } from './index';
 
 describe('AI capability boundary', () => {
+  it('offers clarification in both modes with bounded options and no model-provided identity', () => {
+    expect(workoutToolNames).toContain('askUser');
+    expect(analysisToolNames).toContain('askUser');
+    expect(AskUserSchema.parse({ question: ' Which exercise? ' })).toEqual({
+      question: 'Which exercise?',
+      options: [],
+    });
+    expect(() => AskUserSchema.parse({ question: 'Which?', options: ['A', 'A'] })).toThrow();
+    expect(() =>
+      AskUserSchema.parse({ question: 'Which?', options: ['A', 'B', 'C', 'D', 'E'] }),
+    ).toThrow();
+    expect(() => AskUserSchema.parse({ question: 'Which?', userId: 'other' })).toThrow();
+  });
   it('does not expose workout confirmation or arbitrary database access', () => {
     expect(workoutToolNames).not.toContain('confirmWorkout');
     expect(workoutToolNames).not.toContain('undoLastDraftAction');

@@ -1,4 +1,5 @@
 import { currentForUser } from './workoutDrafts';
+import { answeredQuestions } from '@fitness/ai';
 import { v } from 'convex/values';
 import { paginationOptsValidator } from 'convex/server';
 import type { Id } from './_generated/dataModel';
@@ -214,6 +215,22 @@ export const workoutConversation = query({
                 createdAt: request.createdAt,
               },
             ]),
+        ...answeredQuestions(request.toolCalls)
+          .reverse()
+          .flatMap((exchange, index) => [
+            {
+              _id: `${request._id}-answer-${index}`,
+              role: 'user' as const,
+              text: exchange.answer,
+              createdAt: request.createdAt,
+            },
+            {
+              _id: `${request._id}-question-${index}`,
+              role: 'assistant' as const,
+              text: exchange.question,
+              createdAt: request.createdAt,
+            },
+          ]),
         {
           _id: `${request._id}-user`,
           role: 'user' as const,
@@ -244,6 +261,10 @@ export const workoutContext = query({
       .filter((item) => item._id !== requestId && item.status !== 'queued')
       .flatMap((item) => [
         { role: 'user' as const, content: item.prompt },
+        ...answeredQuestions(item.toolCalls).flatMap(({ question, answer }) => [
+          { role: 'assistant' as const, content: question },
+          { role: 'user' as const, content: answer },
+        ]),
         ...(item.text === undefined ? [] : [{ role: 'assistant' as const, content: item.text }]),
       ]);
   },

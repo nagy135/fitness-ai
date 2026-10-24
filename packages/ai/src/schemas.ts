@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const AskUserSchema = z
+  .object({
+    question: z.string().trim().min(1).max(500),
+    options: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  })
+  .strict()
+  .refine(({ options }) => new Set(options).size === options.length, 'Options must be unique');
+
 const WorkoutSetFieldsSchema = z
   .object({
     weightKg: z.number().positive().max(1_500).optional(),

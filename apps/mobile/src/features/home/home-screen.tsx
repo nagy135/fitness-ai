@@ -21,6 +21,7 @@ import { ErrorNotice } from '@/components/error-notice';
 import { useWorkoutSession } from './use-workout-session';
 import { usePromptQueue } from './use-prompt-queue';
 import { QuickModelSettings } from '@/features/settings/quick-model-settings';
+import { useAgentChatFocus } from './use-agent-chat-focus';
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
@@ -34,6 +35,16 @@ export default function HomeScreen() {
   const [prompts, setPrompts] = useState({ workout: '', analysis: '' });
   const { colors } = useAppTheme();
   const session = useWorkoutSession(mode, historyOpen);
+  useAgentChatFocus({
+    command: session.chatFocus,
+    mode,
+    draftId: session.draft?._id,
+    sessionId: session.analysisId,
+    onChange: (open) => {
+      if (open) setLegacyConversation(false);
+      setConversationOpen(open);
+    },
+  });
   const queue = usePromptQueue(
     session.submitPrompt,
     session.busy || session.savingSets || (mode === 'analysis' && session.analysisLoading),
@@ -57,7 +68,7 @@ export default function HomeScreen() {
         </View>
       </Screen>
     );
-  if (!session.ready || session.draft === undefined)
+  if (!session.ready || session.draft === undefined || session.chatFocus === undefined)
     return <LoadingScreen label="Loading your workout…" />;
   const exercises = session.draft?.exercises ?? [];
   const setCount = exercises.reduce((total, row) => total + row.sets.length, 0);
@@ -219,7 +230,6 @@ export default function HomeScreen() {
         {mode === 'workout' && (setCount > 0 || session.workoutExchange) ? (
           <WorkoutReviewBar
             key={`review-${session.draft?._id}`}
-            response={session.workoutExchange}
             busy={busy}
             hasSets={setCount > 0}
             editing={!!session.draft?.editingWorkoutId}
