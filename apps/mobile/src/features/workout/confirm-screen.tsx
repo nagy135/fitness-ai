@@ -83,23 +83,24 @@ export default function ConfirmWorkoutScreen() {
   }
   return (
     <Screen
+      compact
       headerLeft={
-        <IconButton accessibilityLabel="Back to workout" disabled={saving} onPress={back}>
-          <ArrowLeft color={colors.text} size={22} />
-        </IconButton>
+        <View className="flex-1 flex-row items-center gap-2">
+          <IconButton accessibilityLabel="Back to workout" disabled={saving} onPress={back}>
+            <ArrowLeft color={colors.text} size={22} />
+          </IconButton>
+          <DisplayText className="flex-1 text-[26px] leading-8">Review workout</DisplayText>
+        </View>
       }
     >
-      <View className="px-5 pb-2 pt-1">
-        <DisplayText className="text-[32px] leading-[38px]">Review workout.</DisplayText>
-      </View>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-4 px-5 py-3"
+        contentContainerClassName="gap-2 px-5 pb-2 pt-1"
         keyboardShouldPersistTaps="handled"
       >
         {draft ? (
-          <View className="gap-3">
-            <Text className="text-sm text-muted dark:text-muted-dark">Workout date</Text>
+          <View className="gap-1">
+            <Text className="text-xs text-muted dark:text-muted-dark">Workout date</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Change workout date"
@@ -107,14 +108,14 @@ export default function ConfirmWorkoutScreen() {
               accessibilityState={{ expanded: datePickerOpen, disabled: saving }}
               disabled={saving}
               onPress={() => setDatePickerOpen((open) => !open)}
-              className="min-h-12 flex-row items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 active:opacity-70 dark:border-line-dark dark:bg-panel-dark"
+              className="min-h-10 flex-row items-center gap-2 rounded-xl border border-line bg-panel px-3 py-1.5 active:opacity-70 dark:border-line-dark dark:bg-panel-dark"
             >
-              <CalendarDays size={21} color={colors.accent} />
-              <Text className="flex-1 text-base font-bold text-ink dark:text-ink-dark">
+              <CalendarDays size={18} color={colors.accent} />
+              <Text className="flex-1 text-sm font-semibold text-ink dark:text-ink-dark">
                 {selectedDate.toLocaleDateString(undefined, {
-                  weekday: 'long',
+                  weekday: 'short',
                   year: 'numeric',
-                  month: 'long',
+                  month: 'short',
                   day: 'numeric',
                 })}
               </Text>
@@ -134,9 +135,10 @@ export default function ConfirmWorkoutScreen() {
             ) : null}
           </View>
         ) : null}
-        <View className="gap-2">
+        <View className="gap-1">
           <Input
             label="Workout name (optional)"
+            className="min-h-10 px-3 py-1.5 text-sm"
             placeholder="Name this workout"
             value={name}
             onChangeText={setName}
@@ -148,7 +150,7 @@ export default function ConfirmWorkoutScreen() {
           {suggesting || suggestionFailed ? (
             <Text
               accessibilityLiveRegion="polite"
-              className="text-sm text-muted dark:text-muted-dark"
+              className="text-xs text-muted dark:text-muted-dark"
             >
               {suggesting ? 'Suggesting a name…' : 'Add a name or leave it blank.'}
             </Text>
@@ -158,34 +160,43 @@ export default function ConfirmWorkoutScreen() {
           const trackingType =
             catalog.find((item) => item._id === exercise.exerciseId)?.trackingType ?? 'custom';
           return (
-            <View key={exercise.rowId}>
-              <Text className="mb-3 text-xl font-bold text-ink dark:text-ink-dark">
-                {exercise.name}
-              </Text>
-              <View className="rounded-[20px] bg-panel px-4 dark:border-line-dark dark:bg-panel-dark">
-                {exercise.sets.map((set, index) => (
-                  <View
-                    className={`flex-row items-center gap-3 py-4 ${index ? 'border-t border-line dark:border-line-dark' : ''}`}
-                    key={set.setId}
-                  >
-                    <Text className="w-10 text-sm text-muted dark:text-muted-dark">
-                      Set {index + 1}
-                    </Text>
-                    <SetMeasurement
-                      set={normalizeSetForTrackingType(set, trackingType)}
-                      className="flex-1 leading-9"
-                    />
-                    <Check color={colors.accent} size={17} />
-                  </View>
-                ))}
+            <View
+              key={exercise.rowId}
+              className="overflow-hidden rounded-xl border border-line bg-panel dark:border-line-dark dark:bg-panel-dark"
+            >
+              <View className="min-h-10 flex-row items-center gap-2 border-b border-line px-3 py-1.5 dark:border-line-dark">
+                <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
+                  {exercise.name}
+                </Text>
+                <Text className="text-xs text-muted dark:text-muted-dark">
+                  {exercise.sets.length} {exercise.sets.length === 1 ? 'set' : 'sets'}
+                </Text>
               </View>
+              {exercise.sets.map((set, index) => (
+                <View
+                  className={`min-h-11 flex-row items-center gap-2 px-3 py-1 ${index ? 'border-t border-line dark:border-line-dark' : ''}`}
+                  key={set.setId}
+                >
+                  <View className="h-6 w-6 items-center justify-center rounded-full bg-soft dark:bg-soft-dark">
+                    <Text className="text-xs font-semibold text-muted dark:text-muted-dark">
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <SetMeasurement
+                    set={normalizeSetForTrackingType(set, trackingType)}
+                    compact
+                    className="flex-1 leading-6"
+                  />
+                  <Check color={colors.accent} size={15} />
+                </View>
+              ))}
               {!exercise.sets.length ? (
-                <Text className="mt-2 text-sm text-danger dark:text-danger-dark">
+                <Text className="px-3 py-2 text-sm text-danger dark:text-danger-dark">
                   Add a set or remove this exercise to continue.
                 </Text>
               ) : null}
               {exercise.notes ? (
-                <Text className="mt-2 text-sm text-muted dark:text-muted-dark">
+                <Text className="px-3 pb-2 pt-1 text-xs text-muted dark:text-muted-dark">
                   {exercise.notes}
                 </Text>
               ) : null}
@@ -193,7 +204,7 @@ export default function ConfirmWorkoutScreen() {
           );
         })}
         {draft?.notes ? (
-          <Text className="text-base text-muted dark:text-muted-dark">{draft.notes}</Text>
+          <Text className="text-sm text-muted dark:text-muted-dark">{draft.notes}</Text>
         ) : null}
         {!canConfirm && !saving ? (
           <Text className="text-sm text-danger dark:text-danger-dark">
@@ -202,10 +213,10 @@ export default function ConfirmWorkoutScreen() {
         ) : null}
       </ScrollView>
       <ErrorNotice message={error} />
-      <View className="gap-2 border-t border-line px-5 py-3 dark:border-line-dark">
+      <View className="gap-2 border-t border-line px-5 py-2 dark:border-line-dark">
         <View className="flex-row gap-2">
           <Button
-            className="flex-1 px-2"
+            className="min-h-11 flex-1 rounded-xl px-2 py-2"
             accessibilityLabel={
               draft?.editingWorkoutId ? 'Save workout changes' : 'Confirm workout'
             }
@@ -216,7 +227,7 @@ export default function ConfirmWorkoutScreen() {
             Save
           </Button>
           <Button
-            className="flex-1 px-2"
+            className="min-h-11 flex-1 rounded-xl px-2 py-2"
             variant="secondary"
             accessibilityLabel="Continue workout"
             disabled={saving}
@@ -225,7 +236,7 @@ export default function ConfirmWorkoutScreen() {
             Back
           </Button>
           <Button
-            className="flex-1 px-2"
+            className="min-h-11 flex-1 rounded-xl px-2 py-2"
             variant="ghost"
             textClassName="text-danger dark:text-danger-dark"
             accessibilityLabel={
@@ -240,9 +251,9 @@ export default function ConfirmWorkoutScreen() {
         {confirmingDiscard ? (
           <View
             accessibilityLiveRegion="polite"
-            className="gap-3 rounded-2xl bg-soft p-4 dark:bg-soft-dark"
+            className="gap-2 rounded-xl bg-soft p-3 dark:bg-soft-dark"
           >
-            <Text className="text-base font-bold text-ink dark:text-ink-dark">
+            <Text className="text-sm font-bold text-ink dark:text-ink-dark">
               {draft?.editingWorkoutId ? 'Discard changes?' : 'Discard this workout?'}
             </Text>
             <Text className="text-sm leading-5 text-muted dark:text-muted-dark">
@@ -252,7 +263,7 @@ export default function ConfirmWorkoutScreen() {
             </Text>
             <View className="flex-row gap-2">
               <Button
-                className="flex-1"
+                className="min-h-11 flex-1 rounded-xl py-2"
                 variant="secondary"
                 disabled={saving}
                 onPress={() => setConfirmingDiscard(false)}
@@ -260,7 +271,7 @@ export default function ConfirmWorkoutScreen() {
                 Keep
               </Button>
               <Button
-                className="flex-1"
+                className="min-h-11 flex-1 rounded-xl py-2"
                 variant="destructive"
                 loading={saving}
                 onPress={() => void discardAndExit()}

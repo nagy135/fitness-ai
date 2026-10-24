@@ -359,7 +359,9 @@ tracking/analysis icon, or use Android Back to return.
 Tracking uses compact 44-pixel exercise and set rows, tighter vertical spacing,
 and inline set editors. Choose a weight step of 0.5, 1, or 5 kg, then tap −/+.
 Previous sessions use a compact set/measurement table with a repeat action and
-the maximum weight below it.
+the maximum weight below it. The workout review page uses the same compact
+measurements and 44-pixel set rows, with tighter date/name fields and fixed
+Save, Back, and Discard actions.
 Page navigation uses buttons, leaving touch drags available for scrolling.
 The panel shows the selected
 analysis session or current workout draft, with earlier messages available through
