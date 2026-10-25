@@ -57,9 +57,9 @@ export const respond = action({
           { role: 'user' as const, content: started.request.prompt },
         ];
         trace.settings(profile.aiSettings);
-        // Repeated/parallel identical calls share the committed result. A model
-        // retry must not turn a successful addition into an apparent failure.
-        let addition: { input: string; result: Promise<string[]> } | undefined;
+        // Deduplicate retries per batch, while allowing later calls to append
+        // remaining sets from the same request. Receipts also live in Convex.
+        const additions = new Map<string, Promise<string[]>>();
         const tools = {
           ...createChatFocusTools(ctx, { requestId: args.requestId }),
           askUser: questions.tool,
@@ -127,30 +127,52 @@ export const respond = action({
               }),
           }),
           addExercisesToDraft: tool({
+            // Responses otherwise makes optional measurements required, forcing
+            // nulls or invented placeholder values. Zod still validates input.
+            strict: false,
             description:
-              'Append ONLY newly performed sets from the current request, including earlier measurements that the latest message clarifies, in one ordered batch. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. Do not resend already handled additions from earlier turns, even if they were later edited or deleted. Copy saved historical sets only when the current request explicitly asks to repeat them. For corrections use updateSet/removeSet. Identical sets are valid when the user explicitly performed another set. Call once after resolving every exercise ID.',
+              'Add one or MANY sets for one or more exercises. Prefer one call containing ALL requested sets. Shorthand "squats 10x17.5 10x18" means TWO sets: 10 reps at 17.5, then 10 reps at 18. With metric units, send exercises: [{ exerciseId: "resolved-squat-id", sets: [{ reps: 10, weightKg: 17.5 }, { reps: 10, weightKg: 18 }] }]. Each reps x weight pair is one set, not a set count; use the user preferred weight unit unless explicitly specified and convert pounds to kilograms. For "3 sets of 10 reps", use sets: [{ reps: 10, count: 3 }]. count repeats an entry as separate consecutive identical sets; omitted count means one set. Append ONLY newly performed sets from the current request, including earlier measurements that the latest message clarifies. Existing exercise rows are reused and supplied sets are APPENDED, never replaced. If an earlier call saved part of this request, submit ONLY the remaining sets. Identical batches are retries; include all identical sets together using count or repeated array entries. Do not resend already handled additions from earlier turns, even if they were later edited or deleted. Copy saved historical sets only when the current request explicitly asks to repeat them. For corrections use updateSet/removeSet. Resolve exercise IDs before adding; at most 100 sets per exercise per batch.',
             inputSchema: AddExercisesToDraftInputSchema,
             execute: async ({ exercises }) => {
-              const input = JSON.stringify(exercises);
-              if (addition) {
-                if (addition.input === input) return addition.result;
-                throw new Error(
-                  'An addition batch has already been submitted for this request. This different batch was not applied. Read getCurrentDraft to check the saved rows; preserve them and do not undo, remove, or resend them.',
-                );
-              }
+              const expandedExercises = exercises.map(({ sets, ...exercise }) => ({
+                ...exercise,
+                sets: sets.flatMap(({ count = 1, ...set }) =>
+                  Array.from({ length: count }, () => ({ ...set })),
+                ),
+              }));
+              // Fixed field order makes equivalent counted/expanded calls and
+              // JSON property order share the same persisted receipt.
+              const input = JSON.stringify(expandedExercises, [
+                'exerciseId',
+                'notes',
+                'sets',
+                'weightKg',
+                'reps',
+                'durationSeconds',
+                'distanceMeters',
+                'rir',
+                'rpe',
+              ]);
+              const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+              const additionKey = Array.from(new Uint8Array(digest), (byte) =>
+                byte.toString(16).padStart(2, '0'),
+              ).join('');
+              const previous = additions.get(additionKey);
+              if (previous) return previous;
               const result = ctx.runMutation(refs.draftAddExercises, {
-                exercises: exercises.map(({ exerciseId, ...exercise }) => ({
+                exercises: expandedExercises.map(({ exerciseId, ...exercise }) => ({
                   ...exercise,
                   exerciseId: exerciseId as Id<'exercises'>,
                 })),
                 source: 'ai',
                 requestId: args.requestId,
+                additionKey,
               });
-              addition = { input, result };
+              additions.set(additionKey, result);
               try {
                 return await result;
               } catch (error) {
-                addition = undefined;
+                additions.delete(additionKey);
                 throw error;
               }
             },
@@ -224,6 +246,7 @@ export const respond = action({
           generateText({
             ...toolCalls.generation(trace.generation('response')),
             model: createUserModel(profile.aiSettings),
+            maxOutputTokens: 4_096,
             system: `${workoutSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG: ${JSON.stringify(catalog)}\nCURRENT DRAFT: ${JSON.stringify(draft)}`,
             messages,
             tools,
@@ -246,10 +269,16 @@ export const respond = action({
           text,
           toolCalls: toolCalls.calls,
         };
-      } catch {
+      } catch (error) {
         trace.status = 'failed';
-        const text =
-          'The request did not finish. Any changes already saved are shown in your draft. This submission will not run again; describe any remaining changes in a new message.';
+        const paymentRequired =
+          typeof error === 'object' &&
+          error !== null &&
+          'statusCode' in error &&
+          error.statusCode === 402;
+        const text = paymentRequired
+          ? 'The AI provider rejected this request because its remaining credit or API-key spending limit cannot cover the response. Any changes already saved remain in your draft. Check the provider billing limits before trying again.'
+          : 'The request did not finish. Any changes already saved are shown in your draft. This submission will not run again; describe any remaining changes in a new message.';
         await trace.time('save_response', () =>
           ctx.runMutation(internal.aiMessages.finishWorkoutRequest, {
             ...args,

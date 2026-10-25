@@ -64,7 +64,8 @@ const conversation = handler<
 >(workoutConversation);
 const add = handler<
   {
-    exercises: { exerciseId: Id<'exercises'>; sets: { reps: number }[] }[];
+    exercises: { exerciseId: Id<'exercises'>; sets: { reps: number; weightKg?: number }[] }[];
+    additionKey?: string;
     source: 'ai';
     requestId: Id<'workoutRequests'>;
   },
@@ -260,6 +261,84 @@ it('keeps tool payloads in the workout receipt and saved conversation across ret
 });
 
 describe('durable workout submissions', () => {
+  it.each([false, true])(
+    'saves squats 10x17.5 10x18 in order, preserving earlier sets and deduplicating retries (split: %s)',
+    async (split) => {
+      rows[1].trackingType = 'weight_reps';
+      rows[0].exercises = [
+        {
+          rowId: 'existing-squats',
+          exerciseId,
+          name: 'Squats',
+          sets: [{ setId: 'warmup', reps: 5, weightKg: 10 }],
+        },
+      ];
+      const requestId = await running('squats 10x17.5 10x18');
+      const sets = [
+        { reps: 10, weightKg: 17.5 },
+        { reps: 10, weightKg: 18 },
+      ];
+      const batches = split ? sets.map((set) => [set]) : [sets];
+      for (const [index, sets] of batches.entries()) {
+        const args = {
+          requestId,
+          source: 'ai' as const,
+          additionKey: `batch-${index}`,
+          exercises: [{ exerciseId, sets }],
+        };
+        const result = await add(ctx, args);
+        expect(await add(ctx, args)).toEqual(result);
+      }
+      const draft = (await currentForUser(ctx, userId))!;
+      expect(draft.exercises).toHaveLength(1);
+      expect(draft.exercises[0].rowId).toBe('existing-squats');
+      expect(draft.exercises[0].sets).toEqual([
+        { setId: 'warmup', reps: 5, weightKg: 10 },
+        { setId: expect.any(String), reps: 10, weightKg: 17.5 },
+        { setId: expect.any(String), reps: 10, weightKg: 18 },
+      ]);
+      expect(new Set(draft.exercises[0].sets.map(({ setId }) => setId)).size).toBe(3);
+      expect(rows.filter(({ table }) => table === 'draftEvents')).toHaveLength(batches.length);
+      expect(rows.filter(({ table }) => table === 'workouts')).toHaveLength(0);
+      expect(rows.find(({ _id }) => _id === requestId)?.additionBatches).toHaveLength(
+        batches.length,
+      );
+      await finish(ctx, { requestId, text: 'Added both squat sets.', failed: false });
+      await expect(
+        add(ctx, {
+          requestId,
+          source: 'ai',
+          additionKey: 'another-batch',
+          exercises: [{ exerciseId, sets }],
+        }),
+      ).rejects.toThrow('no longer active');
+    },
+  );
+
+  it('does not consume an addition key when set validation fails', async () => {
+    const requestId = await running();
+    const args = { ...batch(requestId), additionKey: 'batch-1' };
+    rows[1].trackingType = 'duration';
+    await expect(add(ctx, args)).rejects.toThrow('at least one tracked value');
+    expect(rows.find(({ _id }) => _id === requestId)?.additionBatches).toBeUndefined();
+    rows[1].trackingType = 'reps';
+    await add(ctx, args);
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets).toHaveLength(2);
+  });
+
+  it('preserves legacy receipts and blocks an unkeyed replay after keyed additions', async () => {
+    const requestId = await running();
+    const first = await add(ctx, batch(requestId));
+    expect(await add(ctx, { ...batch(requestId), additionKey: 'new-key' })).toEqual(first);
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets).toHaveLength(2);
+    await finish(ctx, { requestId, text: 'Added.', failed: false });
+    await acknowledge(ctx, { requestId });
+    const next = await running('Another two sets');
+    await add(ctx, { ...batch(next), additionKey: 'batch-1' });
+    await expect(add(ctx, batch(next))).rejects.toThrow('addition key is required');
+    expect((await currentForUser(ctx, userId))!.exercises[0].sets).toHaveLength(4);
+  });
+
   it('preserves committed exercises and sets when AI attempts rollback and the response fails', async () => {
     rows[0].exercises = [
       {

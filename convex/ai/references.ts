@@ -58,6 +58,7 @@ export const refs = {
     'mutation',
     {
       exercises: { exerciseId: Id<'exercises'>; notes?: string; sets: TrackedSet[] }[];
+      additionKey?: string;
       source: Source;
       requestId?: Id<'workoutRequests'>;
     },

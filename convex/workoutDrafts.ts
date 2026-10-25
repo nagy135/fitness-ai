@@ -141,6 +141,7 @@ export const addExercise = mutation({
 
 export const addExercises = mutation({
   args: {
+    additionKey: v.optional(v.string()),
     exercises: v.array(
       v.object({
         exerciseId: v.id('exercises'),
@@ -155,7 +156,15 @@ export const addExercises = mutation({
     const user = await requireUserProfile(ctx);
     const draft = await requireCurrent(ctx, user._id, args);
     const request = args.requestId ? await ctx.db.get(args.requestId) : null;
+    // Preserve receipts from older actions that submitted one batch per request.
     if (request?.addedRowIds) return request.addedRowIds;
+    if (args.additionKey) {
+      if (!request) throw new ConvexError('Addition keys require an AI workout request');
+      const previous = request.additionBatches?.find(({ key }) => key === args.additionKey);
+      if (previous) return previous.rowIds;
+    } else if (request?.additionBatches?.length) {
+      throw new ConvexError('An addition key is required after keyed additions');
+    }
     if (args.exercises.length === 0 || args.exercises.length > 100) {
       throw new ConvexError('Exercise batch must contain between 1 and 100 exercises');
     }
@@ -215,7 +224,19 @@ export const addExercises = mutation({
       })),
     });
     await ctx.db.patch(draft._id, { exercises, updatedAt: Date.now() });
-    if (args.requestId) await ctx.db.patch(args.requestId, { addedRowIds: rowIds });
+    if (args.requestId) {
+      await ctx.db.patch(
+        args.requestId,
+        args.additionKey
+          ? {
+              additionBatches: [
+                ...(request?.additionBatches ?? []),
+                { key: args.additionKey, rowIds },
+              ],
+            }
+          : { addedRowIds: rowIds },
+      );
+    }
     return rowIds;
   },
 });

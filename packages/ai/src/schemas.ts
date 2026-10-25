@@ -63,7 +63,28 @@ const DraftExerciseInputSchema = z
   .object({
     exerciseId: z.string().min(1),
     notes: z.string().trim().max(1_000).optional(),
-    sets: z.array(WorkoutSetInputSchema).max(100),
+    sets: z
+      .array(
+        WorkoutSetInputSchema.safeExtend({
+          count: z
+            .number()
+            .int()
+            .min(1)
+            .max(100)
+            .optional()
+            .describe(
+              'Number of consecutive identical sets to add. Omit for one set. For 3 sets of 10 reps, use { reps: 10, count: 3 }.',
+            ),
+        }),
+      )
+      .max(100)
+      .refine(
+        (sets) => sets.reduce((total, set) => total + (set.count ?? 1), 0) <= 100,
+        'An exercise cannot contain more than 100 sets per batch, including repeated sets',
+      )
+      .describe(
+        'All newly requested sets in order. For metric "10x17.5 10x18", include [{ reps: 10, weightKg: 17.5 }, { reps: 10, weightKg: 18 }]. Use count only for identical sets. Never include sets already in the draft.',
+      ),
   })
   .strict();
 

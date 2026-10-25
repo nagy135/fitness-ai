@@ -67,6 +67,51 @@ describe('AI capability boundary', () => {
     expect(workoutToolNames).not.toContain('addSet');
   });
 
+  it('accepts repeated and individual sets together without requiring count on existing inputs', () => {
+    const input = {
+      exercises: [
+        {
+          exerciseId: 'bench',
+          sets: [
+            { weightKg: 80, reps: 10, count: 3 },
+            { weightKg: 85, reps: 6 },
+          ],
+        },
+        { exerciseId: 'plank', sets: [{ durationSeconds: 60, count: 2 }] },
+      ],
+    };
+    expect(AddExercisesToDraftInputSchema.parse(input)).toEqual(input);
+    expect(
+      AddExercisesToDraftInputSchema.parse({
+        exercises: [{ exerciseId: 'bench', sets: [{ reps: 10, count: 100 }] }],
+      }),
+    ).toBeDefined();
+  });
+
+  it.each([0, -1, 1.5, 101, Infinity, '3', null])('rejects invalid set count %j', (count) => {
+    expect(() =>
+      AddExercisesToDraftInputSchema.parse({
+        exercises: [{ exerciseId: 'bench', sets: [{ reps: 10, count }] }],
+      }),
+    ).toThrow();
+  });
+
+  it('enforces the expanded set limit and requires actual measurements with a count', () => {
+    for (const sets of [
+      [
+        { reps: 10, count: 60 },
+        { reps: 8, count: 41 },
+      ],
+      [{ reps: 10, count: 100 }, { reps: 8 }],
+      [{ count: 3 }],
+      [{ reps: 0, count: 3 }],
+    ]) {
+      expect(() =>
+        AddExercisesToDraftInputSchema.parse({ exercises: [{ exerciseId: 'bench', sets }] }),
+      ).toThrow();
+    }
+  });
+
   it('accepts general multi-series 2D charts and rejects non-finite data', () => {
     expect(
       RenderChartSchema.parse({

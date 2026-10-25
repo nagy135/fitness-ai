@@ -130,6 +130,9 @@ export default defineSchema({
     ),
     acknowledged: v.boolean(),
     addedRowIds: v.optional(v.array(v.string())),
+    additionBatches: v.optional(
+      v.array(v.object({ key: v.string(), rowIds: v.array(v.string()) })),
+    ),
     expiresAt: v.number(),
     text: v.optional(v.string()),
     toolCalls: v.optional(v.array(toolCallValidator)),

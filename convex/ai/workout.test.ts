@@ -39,7 +39,10 @@ let currentDraft: typeof draft;
 let conversation: { role: 'user' | 'assistant'; content: string }[];
 let ctx: ActionCtx;
 const mutate = vi.fn();
-type TestTools = Record<string, { execute: (input: unknown) => Promise<unknown> }>;
+type TestTools = Record<
+  string,
+  { strict?: boolean; execute: (input: unknown) => Promise<unknown> }
+>;
 function generatedTools(options: unknown): TestTools {
   return (options as { tools: TestTools }).tools;
 }
@@ -112,7 +115,25 @@ it('restores tool payloads from a completed receipt without rerunning the model'
   expect(generateText).not.toHaveBeenCalled();
 });
 
+it('reports provider credit failures without exposing the raw error or credentials', async () => {
+  vi.mocked(generateText).mockRejectedValueOnce(
+    Object.assign(new Error('PRIVATE_PROVIDER_RESPONSE'), { statusCode: 402 }),
+  );
+  const result = await run(ctx, { requestId });
+  expect(result.text).toContain('remaining credit or API-key spending limit');
+  expect(result.text).not.toContain('PRIVATE_PROVIDER_RESPONSE');
+  expect(mutate.mock.calls.at(-1)?.[1]).toMatchObject({ failed: true, text: result.text });
+});
+
 describe('workout AI request orchestration', () => {
+  it('bounds per-step output so the provider does not reserve its full default token allowance', async () => {
+    await run(ctx, { requestId });
+    expect(vi.mocked(generateText).mock.calls[0][0].maxOutputTokens).toBe(4_096);
+    expect(
+      generatedTools(vi.mocked(generateText).mock.calls[0][0]).addExercisesToDraft.strict,
+    ).toBe(false);
+  });
+
   it('exposes every declared workout tool, including read-only previous records', async () => {
     await run(ctx, { requestId });
     expect(Object.keys(generatedTools(vi.mocked(generateText).mock.calls[0][0])).sort()).toEqual(
@@ -217,31 +238,90 @@ describe('workout AI request orchestration', () => {
     ).toHaveLength(1);
   });
 
-  it('rejects a different second batch without undoing the successful first batch', async () => {
-    let secondBatchError: unknown;
+  it('expands counted sets in order for multiple exercises and shares retries of the expanded batch', async () => {
+    const counted = {
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          notes: 'Working sets',
+          sets: [
+            { reps: 10, weightKg: 80, count: 3, rir: 2, notes: 'Controlled' },
+            { reps: 6, weightKg: 85 },
+          ],
+        },
+        { exerciseId: 'exercise-2', sets: [{ durationSeconds: 60, count: 2 }] },
+      ],
+    };
+    const expanded = {
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          notes: 'Working sets',
+          sets: [
+            { reps: 10, weightKg: 80, rir: 2, notes: 'Controlled' },
+            { reps: 10, weightKg: 80, rir: 2, notes: 'Controlled' },
+            { reps: 10, weightKg: 80, rir: 2, notes: 'Controlled' },
+            { reps: 6, weightKg: 85 },
+          ],
+        },
+        { exerciseId: 'exercise-2', sets: [{ durationSeconds: 60 }, { durationSeconds: 60 }] },
+      ],
+    };
+    mutate.mockImplementation(async (ref) =>
+      getFunctionName(ref) === 'aiMessages:beginWorkoutRequest'
+        ? { execute: true, request: { prompt: 'Log three working sets and a heavier final set' } }
+        : ['saved-row-1', 'saved-row-2'],
+    );
+    vi.mocked(generateText).mockImplementation(async (options) => {
+      const add = generatedTools(options).addExercisesToDraft.execute;
+      expect(await Promise.all([add(counted), add(expanded)])).toEqual([
+        ['saved-row-1', 'saved-row-2'],
+        ['saved-row-1', 'saved-row-2'],
+      ]);
+      expect(await add(counted)).toEqual(['saved-row-1', 'saved-row-2']);
+      return { text: 'Added all six sets.', steps: [] } as never;
+    });
+    expect(await run(ctx, { requestId })).toMatchObject({ text: 'Added all six sets.' });
+    const writes = mutate.mock.calls.filter(
+      ([ref]) => getFunctionName(ref) === 'workoutDrafts:addExercises',
+    );
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toEqual({
+      ...expanded,
+      source: 'ai',
+      requestId,
+      additionKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(counted.exercises[0].sets[0].count).toBe(3);
+  });
+
+  it('allows both squat sets in separate calls and retains both writes if the response fails', async () => {
+    const first = { exercises: [{ exerciseId: 'squat', sets: [{ reps: 10, weightKg: 17.5 }] }] };
+    const second = { exercises: [{ exerciseId: 'squat', sets: [{ reps: 10, weightKg: 18 }] }] };
     vi.mocked(generateText).mockImplementation(async (options) => {
       const tools = generatedTools(options);
-      await tools.addExercisesToDraft.execute(additions);
-      try {
-        await tools.addExercisesToDraft.execute({
-          exercises: [{ exerciseId: 'exercise-2', sets: [{ reps: 8 }] }],
-        });
-      } catch (error) {
-        secondBatchError = error;
-      }
-      throw new Error('Response failed after saving the first batch');
+      await tools.addExercisesToDraft.execute(first);
+      await tools.addExercisesToDraft.execute(second);
+      // Different property ordering must not duplicate an already saved set.
+      await tools.addExercisesToDraft.execute({
+        exercises: [{ sets: [{ weightKg: 17.5, reps: 10 }], exerciseId: 'squat' }],
+      });
+      throw new Error('Response failed after saving both sets');
     });
     expect(await run(ctx, { requestId })).toMatchObject({
       text: expect.stringContaining('Any changes already saved'),
     });
-    expect(secondBatchError).toMatchObject({
-      message: expect.stringContaining('This different batch was not applied'),
-    });
     expect(mutate.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
       'aiMessages:beginWorkoutRequest',
       'workoutDrafts:addExercises',
+      'workoutDrafts:addExercises',
       'aiMessages:finishWorkoutRequest',
     ]);
+    const writes = mutate.mock.calls.filter(
+      ([ref]) => getFunctionName(ref) === 'workoutDrafts:addExercises',
+    );
+    expect(writes.map(([, args]) => args.exercises)).toEqual([first.exercises, second.exercises]);
+    expect(writes[0][1].additionKey).not.toBe(writes[1][1].additionKey);
   });
 
   it('allows a corrected batch after a rejected addition', async () => {
@@ -449,6 +529,7 @@ it('copies all retrieved previous sets through the fenced draft addition tool', 
     exercises: [{ exerciseId: 'exercise-1', sets }],
     source: 'ai',
     requestId,
+    additionKey: expect.stringMatching(/^[a-f0-9]{64}$/),
   });
   expect(mutate.mock.calls.some(([ref]) => getFunctionName(ref).startsWith('workouts:'))).toBe(
     false,
