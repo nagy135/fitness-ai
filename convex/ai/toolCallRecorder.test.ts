@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { generateText, stepCountIs, tool } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { z } from 'zod';
+import type { ToolCallRecord } from '@fitness/ai';
 import { ToolCallRecorder } from './toolCallRecorder';
 import { observeAI } from './telemetry';
 
@@ -9,7 +10,11 @@ afterEach(() => vi.restoreAllMocks());
 
 it('records real SDK calls in invocation order with results/errors and keeps timing logs private', async () => {
   const log = vi.spyOn(console, 'info').mockImplementation(() => undefined);
-  const calls = new ToolCallRecorder();
+  const snapshots: ToolCallRecord[][] = [];
+  const calls = new ToolCallRecorder(async (snapshot) => {
+    await Promise.resolve();
+    snapshots.push(snapshot);
+  });
   const usage = {
     inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
     outputTokens: { total: 5, text: 5, reasoning: 0 },
@@ -44,6 +49,16 @@ it('records real SDK calls in invocation order with results/errors and keeps tim
         lookup: tool({
           inputSchema: z.object({ query: z.string() }),
           execute: async ({ query }) => {
+            expect(
+              snapshots.some((snapshot) =>
+                snapshot.some(
+                  (call) =>
+                    JSON.parse(call.input).query === query &&
+                    call.output === undefined &&
+                    call.error === undefined,
+                ),
+              ),
+            ).toBe(true);
             if (query === 'PRIVATE_failed') throw new Error('PRIVATE_ERROR');
             return { query, sets: [{ reps: 10, weightKg: 80 }] };
           },
@@ -61,6 +76,10 @@ it('records real SDK calls in invocation order with results/errors and keeps tim
   });
   expect(JSON.parse(calls.calls[2].error!)).toEqual({ name: 'Error', message: 'PRIVATE_ERROR' });
   expect(calls.calls[2].output).toBeUndefined();
+  expect(snapshots).toHaveLength(6);
+  expect(snapshots[0]).toHaveLength(1);
+  expect(snapshots[0][0].output).toBeUndefined();
+  expect(snapshots.at(-1)).toEqual(calls.calls);
   const events = log.mock.calls.map(([line]) => JSON.parse(line));
   expect(events.at(-1)).toMatchObject({ toolCalls: 3, modelCalls: 2 });
   expect(JSON.stringify(events)).not.toContain('PRIVATE_');

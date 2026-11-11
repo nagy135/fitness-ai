@@ -147,73 +147,98 @@ export const respond = action({
       };
 
       const system = `${analysisSystemPrompt}\n\nCURRENT DATE: ${new Date().toISOString().slice(0, 10)}\nCURRENT USER: ${JSON.stringify({ displayName: profile.displayName, units: profile.units })}\nEXERCISE CATALOG (history is intentionally omitted): ${JSON.stringify(catalog)}`;
-      const toolCalls = new ToolCallRecorder();
-      const result = await trace.time('generate_response', () =>
-        generateText({
-          ...toolCalls.generation(trace.generation('response')),
-          model: createUserModel(profile.aiSettings),
-          system,
-          messages,
-          tools,
-          stopWhen: [stepCountIs(8), questions.stopped],
-        }),
-      );
-      if (graphRequested && !chart && !questions.stopped()) {
-        const retrievedData = result.steps.flatMap((step) =>
-          step.toolResults
-            .filter(
-              (toolResult) =>
-                !['renderChart', 'focusChat', 'defocusChat'].includes(toolResult.toolName),
-            )
-            .map((toolResult) => ({ name: toolResult.toolName, output: toolResult.output })),
-        );
-        if (retrievedData.length) {
-          await trace.time('generate_chart_correction', () =>
-            generateText({
-              ...toolCalls.generation(trace.generation('chart_correction')),
-              model: createUserModel(profile.aiSettings),
-              system: `${system}\n\nThis is a chart-only correction pass. You MUST call renderChart exactly once. Use only values contained in the user's request or RETRIEVED DATA. Do not invent missing points.`,
-              messages: [
-                ...messages,
-                { role: 'user', content: `RETRIEVED DATA: ${JSON.stringify(retrievedData)}` },
-              ],
-              tools: { renderChart: tools.renderChart },
-              toolChoice: { type: 'tool', toolName: 'renderChart' },
-              stopWhen: stepCountIs(1),
-            }),
-          );
-        }
-      }
-      const chartPointCount = chart
-        ? 'series' in chart
-          ? chart.series.reduce((total, series) => total + series.points.length, 0)
-          : chart.points.length
-        : 0;
-      const text = questions.stopped()
-        ? questions.stopText()
-        : chart
-          ? chartPointCount
-            ? result.text.trim() || `Here is ${chart.title}.`
-            : `There is no retrieved data to plot for ${chart.title}.`
-          : result.text.trim() ||
-            (graphRequested
-              ? 'I could not find data to plot. Try naming an exercise or a date range.'
-              : 'I could not produce an analysis from the retrieved data.');
-      await trace.time('save_response', () =>
-        ctx.runMutation(refs.messageAppend, {
+      let responseMessageId: Id<'aiMessages'> | undefined;
+      const toolCalls = new ToolCallRecorder(async (calls) => {
+        responseMessageId = await ctx.runMutation(refs.messageAppend, {
           mode: 'analysis',
           role: 'assistant',
+          sessionId,
+          text: '',
+          toolCalls: calls,
+          ...(responseMessageId ? { messageId: responseMessageId } : {}),
+        });
+      });
+      try {
+        const result = await trace.time('generate_response', () =>
+          generateText({
+            ...toolCalls.generation(trace.generation('response')),
+            model: createUserModel(profile.aiSettings),
+            system,
+            messages,
+            tools,
+            stopWhen: [stepCountIs(8), questions.stopped],
+          }),
+        );
+        if (graphRequested && !chart && !questions.stopped()) {
+          const retrievedData = result.steps.flatMap((step) =>
+            step.toolResults
+              .filter(
+                (toolResult) =>
+                  !['renderChart', 'focusChat', 'defocusChat'].includes(toolResult.toolName),
+              )
+              .map((toolResult) => ({ name: toolResult.toolName, output: toolResult.output })),
+          );
+          if (retrievedData.length) {
+            await trace.time('generate_chart_correction', () =>
+              generateText({
+                ...toolCalls.generation(trace.generation('chart_correction')),
+                model: createUserModel(profile.aiSettings),
+                system: `${system}\n\nThis is a chart-only correction pass. You MUST call renderChart exactly once. Use only values contained in the user's request or RETRIEVED DATA. Do not invent missing points.`,
+                messages: [
+                  ...messages,
+                  { role: 'user', content: `RETRIEVED DATA: ${JSON.stringify(retrievedData)}` },
+                ],
+                tools: { renderChart: tools.renderChart },
+                toolChoice: { type: 'tool', toolName: 'renderChart' },
+                stopWhen: stepCountIs(1),
+              }),
+            );
+          }
+        }
+        const chartPointCount = chart
+          ? 'series' in chart
+            ? chart.series.reduce((total, series) => total + series.points.length, 0)
+            : chart.points.length
+          : 0;
+        const text = questions.stopped()
+          ? questions.stopText()
+          : chart
+            ? chartPointCount
+              ? result.text.trim() || `Here is ${chart.title}.`
+              : `There is no retrieved data to plot for ${chart.title}.`
+            : result.text.trim() ||
+              (graphRequested
+                ? 'I could not find data to plot. Try naming an exercise or a date range.'
+                : 'I could not produce an analysis from the retrieved data.');
+        await trace.time('save_response', () =>
+          ctx.runMutation(refs.messageAppend, {
+            mode: 'analysis',
+            role: 'assistant',
+            sessionId,
+            text,
+            ...(chart ? { chart } : {}),
+            toolCalls: toolCalls.calls,
+            ...(responseMessageId ? { messageId: responseMessageId } : {}),
+          }),
+        );
+        return {
           sessionId,
           text,
           ...(chart ? { chart } : {}),
           toolCalls: toolCalls.calls,
-        }),
-      );
-      return {
-        sessionId,
-        text,
-        ...(chart ? { chart } : {}),
-        toolCalls: toolCalls.calls,
-      };
+        };
+      } catch (error) {
+        if (responseMessageId) {
+          await ctx.runMutation(refs.messageAppend, {
+            mode: 'analysis',
+            role: 'assistant',
+            sessionId,
+            messageId: responseMessageId,
+            text: 'Analysis did not finish. Please try again.',
+            toolCalls: toolCalls.calls,
+          });
+        }
+        throw error;
+      }
     }),
 });

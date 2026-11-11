@@ -33,6 +33,10 @@ export function ConversationDrawer({
   const { colors } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
   const lastScrolledMessage = useRef<string | undefined>(undefined);
+  const newest = messages?.[0];
+  const scrollKey = newest
+    ? JSON.stringify([newest._id, newest.text, newest.toolCalls, newest.chart])
+    : undefined;
   const chronologicalMessages = [...(messages ?? [])].reverse();
   useEffect(() => {
     if (visible) {
@@ -58,9 +62,9 @@ export function ConversationDrawer({
             contentContainerClassName="gap-4 pb-6"
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             onContentSizeChange={() => {
-              if (visible && lastScrolledMessage.current !== messages?.[0]?._id) {
+              if (visible && lastScrolledMessage.current !== scrollKey) {
                 scrollRef.current?.scrollToEnd({ animated: false });
-                lastScrolledMessage.current = messages?.[0]?._id;
+                lastScrolledMessage.current = scrollKey;
               }
             }}
             ref={scrollRef}
@@ -108,25 +112,27 @@ const ConversationMessageBubble = memo(function ConversationMessageBubble({
           <ToolCallPills calls={message.toolCalls} />
         </View>
       ) : null}
-      <View
-        className={
-          fromUser
-            ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
-            : 'w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
-        }
-      >
-        {!fromUser ? (
-          <AnalysisMarkdown text={message.text} compact />
-        ) : (
-          <Text
-            selectable
-            className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
-          >
-            {message.text}
-          </Text>
-        )}
-        {!fromUser && message.chart ? <ProgressChart chart={message.chart} compact /> : null}
-      </View>
+      {message.text || message.chart ? (
+        <View
+          className={
+            fromUser
+              ? 'max-w-[88%] rounded-3xl rounded-br-lg bg-accent px-4 py-3 dark:bg-accent-dark'
+              : 'w-[94%] rounded-3xl rounded-bl-lg border border-line bg-panel px-4 py-3 dark:border-line-dark dark:bg-panel-dark'
+          }
+        >
+          {!fromUser ? (
+            <AnalysisMarkdown text={message.text} compact />
+          ) : (
+            <Text
+              selectable
+              className="text-[15px] leading-6 text-accent-ink dark:text-accent-ink-dark"
+            >
+              {message.text}
+            </Text>
+          )}
+          {!fromUser && message.chart ? <ProgressChart chart={message.chart} compact /> : null}
+        </View>
+      ) : null}
       <Text className="mt-1 px-1 text-[11px] text-muted dark:text-muted-dark">
         {new Date(message.createdAt).toLocaleString([], {
           day: 'numeric',

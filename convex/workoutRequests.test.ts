@@ -10,6 +10,7 @@ import {
   workoutContext,
   finishWorkoutRequest,
   prepareWorkoutRequest,
+  publishWorkoutToolCalls,
 } from './aiMessages';
 import {
   beginEdit,
@@ -1146,4 +1147,38 @@ describe('choosing the workout date during review', () => {
     expect(rows.find((row) => row._id === savedId)).toMatchObject({ performedAt });
     expect(await currentForUser(ctx, userId)).toEqual(ordinary);
   });
+});
+
+it('publishes running tool bubbles and completes the same saved response without duplicates', async () => {
+  const requestId = await prepare(ctx, { prompt: 'Add push-ups' });
+  await begin(ctx, { requestId });
+  const publish = handler<{ requestId: Id<'workoutRequests'>; toolCalls: ToolCallRecord[] }, void>(
+    publishWorkoutToolCalls,
+  );
+  const calls = [{ toolCallId: 'live', toolName: 'addExercisesToDraft', input: '{}' }];
+  await publish(ctx, { requestId, toolCalls: calls });
+  const live = await conversation(ctx, { draftId, paginationOpts: { numItems: 20, cursor: null } });
+  expect(live.page[0]).toMatchObject({ role: 'assistant', text: '', toolCalls: calls });
+  const messages = await history(ctx, { mode: 'workout' });
+  const reply = messages.find((message) => message.role === 'assistant')!;
+  expect(reply).toMatchObject({ text: '', toolCalls: calls });
+  const completed = [{ ...calls[0], output: '[]' }];
+  await publish(ctx, { requestId, toolCalls: completed });
+  await finish(ctx, { requestId, text: 'Added', failed: false, toolCalls: completed });
+  const saved = (await history(ctx, { mode: 'workout' })).filter(
+    (message) => message.role === 'assistant',
+  );
+  expect(saved).toHaveLength(1);
+  expect(saved[0]).toMatchObject({ _id: reply._id, text: 'Added', toolCalls: completed });
+  await expect(publish(ctx, { requestId, toolCalls: calls })).rejects.toThrow('no longer running');
+});
+
+it('rejects live tool updates for another user', async () => {
+  const requestId = await prepare(ctx, { prompt: 'Add push-ups' });
+  await begin(ctx, { requestId });
+  vi.mocked(requireUserProfile).mockResolvedValue({ _id: 'other-user' } as Doc<'userProfiles'>);
+  const publish = handler<{ requestId: Id<'workoutRequests'>; toolCalls: ToolCallRecord[] }, void>(
+    publishWorkoutToolCalls,
+  );
+  await expect(publish(ctx, { requestId, toolCalls: [] })).rejects.toThrow('Request not found');
 });

@@ -129,6 +129,7 @@ export default defineSchema({
       v.literal('failed'),
     ),
     acknowledged: v.boolean(),
+    responseMessageId: v.optional(v.id('aiMessages')),
     addedRowIds: v.optional(v.array(v.string())),
     additionBatches: v.optional(
       v.array(v.object({ key: v.string(), rowIds: v.array(v.string()) })),

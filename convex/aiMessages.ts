@@ -101,10 +101,12 @@ export const analysisContext = query({
       .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
       .order('asc')
       .collect();
-    return messages.map(({ role, text, chart }) => ({
-      role,
-      content: chart ? `${text}\n\nSAVED CHART: ${JSON.stringify(chart)}` : text,
-    }));
+    return messages
+      .filter((message) => message.text || message.chart)
+      .map(({ role, text, chart }) => ({
+        role,
+        content: chart ? `${text}\n\nSAVED CHART: ${JSON.stringify(chart)}` : text,
+      }));
   },
 });
 
@@ -163,13 +165,28 @@ export const append = mutation({
     chart: v.optional(chart),
     toolCalls: v.optional(v.array(toolCallValidator)),
     sessionId: v.optional(sessionId),
+    messageId: v.optional(v.id('aiMessages')),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { messageId, ...args }) => {
     const user = await requireUserProfile(ctx);
     if (args.sessionId) {
       if (args.mode !== 'analysis') throw new Error('Only analysis messages belong to an analysis');
       await ownedSession(ctx, args.sessionId, user._id);
       await ctx.db.patch(args.sessionId, { updatedAt: Date.now() });
+    }
+    if (messageId) {
+      const message = await ctx.db.get(messageId);
+      if (
+        !message ||
+        message.userId !== user._id ||
+        message.role !== 'assistant' ||
+        args.role !== 'assistant' ||
+        message.mode !== args.mode ||
+        message.sessionId !== args.sessionId
+      )
+        throw new Error('Response not found');
+      await ctx.db.patch(messageId, args);
+      return messageId;
     }
     return ctx.db.insert('aiMessages', { userId: user._id, ...args, createdAt: Date.now() });
   },
@@ -204,13 +221,13 @@ export const workoutConversation = query({
     return {
       ...result,
       page: result.page.flatMap((request) => [
-        ...(request.text === undefined
+        ...(request.text === undefined && !request.toolCalls?.length
           ? []
           : [
               {
                 _id: `${request._id}-assistant`,
                 role: 'assistant' as const,
-                text: request.text,
+                text: request.text ?? '',
                 toolCalls: request.toolCalls,
                 createdAt: request.createdAt,
               },
@@ -328,13 +345,17 @@ export const beginWorkoutRequest = internalMutation({
       const text =
         'This request timed out. Changes already saved are shown in your draft; this submission will not run again.';
       await ctx.db.patch(requestId, { status: 'failed', text });
-      await ctx.db.insert('aiMessages', {
-        userId: user._id,
-        mode: 'workout',
-        role: 'assistant',
-        text,
-        createdAt: Date.now(),
-      });
+      if (request.responseMessageId) {
+        await ctx.db.patch(request.responseMessageId, { text });
+      } else {
+        await ctx.db.insert('aiMessages', {
+          userId: user._id,
+          mode: 'workout',
+          role: 'assistant',
+          text,
+          createdAt: Date.now(),
+        });
+      }
       return { execute: false, request: { ...request, text } };
     }
     const requests = await ctx.db
@@ -359,6 +380,30 @@ export const beginWorkoutRequest = internalMutation({
   },
 });
 
+// Publish before tool execution so subscribers see calls while the action runs.
+export const publishWorkoutToolCalls = internalMutation({
+  args: { requestId: v.id('workoutRequests'), toolCalls: v.array(toolCallValidator) },
+  handler: async (ctx, { requestId, toolCalls }) => {
+    const user = await requireUserProfile(ctx);
+    const request = await ctx.db.get(requestId);
+    if (!request || request.userId !== user._id) throw new Error('Request not found');
+    if (request.status !== 'running' || request.expiresAt <= Date.now())
+      throw new Error('Request is no longer running');
+    const responseMessageId =
+      request.responseMessageId ??
+      (await ctx.db.insert('aiMessages', {
+        userId: user._id,
+        mode: 'workout',
+        role: 'assistant',
+        text: '',
+        toolCalls,
+        createdAt: Date.now(),
+      }));
+    await ctx.db.patch(responseMessageId, { toolCalls });
+    await ctx.db.patch(requestId, { toolCalls, responseMessageId });
+  },
+});
+
 export const finishWorkoutRequest = internalMutation({
   args: {
     requestId: v.id('workoutRequests'),
@@ -373,13 +418,17 @@ export const finishWorkoutRequest = internalMutation({
     if (request.status !== 'running' || request.expiresAt <= Date.now())
       throw new Error('Request is no longer running');
     await ctx.db.patch(requestId, { status: failed ? 'failed' : 'completed', text, toolCalls });
-    await ctx.db.insert('aiMessages', {
-      userId: user._id,
-      mode: 'workout',
-      role: 'assistant',
-      text,
-      ...(toolCalls ? { toolCalls } : {}),
-      createdAt: Date.now(),
-    });
+    if (request.responseMessageId) {
+      await ctx.db.patch(request.responseMessageId, { text, ...(toolCalls ? { toolCalls } : {}) });
+    } else {
+      await ctx.db.insert('aiMessages', {
+        userId: user._id,
+        mode: 'workout',
+        role: 'assistant',
+        text,
+        ...(toolCalls ? { toolCalls } : {}),
+        createdAt: Date.now(),
+      });
+    }
   },
 });

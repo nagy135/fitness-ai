@@ -104,6 +104,7 @@ export const refs = {
       chart?: AnalysisChart;
       toolCalls?: ToolCallRecord[];
       sessionId?: Id<'analysisSessions'>;
+      messageId?: Id<'aiMessages'>;
     },
     Id<'aiMessages'>
   >('aiMessages:append'),

@@ -29,8 +29,9 @@ function fullPayload(call: ToolCallRecord) {
 
 export function ToolCallPills({ calls }: { calls?: ToolCallRecord[] }) {
   const { colors } = useAppTheme();
-  const [selected, setSelected] = useState<ToolCallRecord>();
-  const close = () => setSelected(undefined);
+  const [selectedId, setSelectedId] = useState<string>();
+  const selected = calls?.find((call) => call.toolCallId === selectedId);
+  const close = () => setSelectedId(undefined);
   if (!calls?.length) return null;
 
   return (
@@ -43,11 +44,12 @@ export function ToolCallPills({ calls }: { calls?: ToolCallRecord[] }) {
             accessibilityLabel={`View ${call.toolName} tool call ${index + 1}`}
             accessibilityHint="Opens the full input and result in a dialog"
             hitSlop={4}
-            onPress={() => setSelected(call)}
+            onPress={() => setSelectedId(call.toolCallId)}
             className="max-w-full rounded-full border border-line bg-soft px-[5px] py-1 active:opacity-70 dark:border-line-dark dark:bg-soft-dark"
           >
             <Text className="text-[11px] font-medium leading-4 text-ink dark:text-ink-dark">
               {call.toolName}
+              {call.output === undefined && call.error === undefined ? ' …' : ''}
             </Text>
           </Pressable>
         ))}

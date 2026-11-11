@@ -80,3 +80,24 @@ it('renders legacy replies and replies with no tool calls without empty controls
   await act(() => renderer.update(createElement(ToolCallPills, { calls: [] })));
   expect(renderer.toJSON()).toBeNull();
 });
+
+it('updates an open tool dialog when a running call finishes', async () => {
+  const running = { toolCallId: 'live', toolName: 'getRecentWorkouts', input: '{}' };
+  await act(() => {
+    renderer = create(createElement(ToolCallPills, { calls: [running] }));
+  });
+  await act(() => renderer.root.findByType('Pressable' as never).props.onPress());
+  expect(
+    JSON.parse(renderer.root.findByProps({ selectable: true }).props.children).output,
+  ).toBeUndefined();
+  await act(() =>
+    renderer.update(
+      createElement(ToolCallPills, {
+        calls: [{ ...running, output: '[{"name":"Push-ups"}]' }],
+      }),
+    ),
+  );
+  expect(JSON.parse(renderer.root.findByProps({ selectable: true }).props.children).output).toEqual(
+    [{ name: 'Push-ups' }],
+  );
+});

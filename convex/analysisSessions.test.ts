@@ -290,3 +290,38 @@ it('loads the whole session in order with charts and excludes all other conversa
   const empty = await create(ctx, { title: 'New' });
   expect(await context(ctx, { sessionId: empty })).toEqual([]);
 });
+
+it('updates a live analysis response in place and excludes unfinished text from model context', async () => {
+  const sessionId = await create(ctx, { title: 'Progress' });
+  await append(ctx, { mode: 'analysis', role: 'user', sessionId, text: 'Show progress' });
+  const toolCalls = [{ toolCallId: 'live', toolName: 'getExerciseHistory', input: '{}' }];
+  const messageId = await append(ctx, {
+    mode: 'analysis',
+    role: 'assistant',
+    sessionId,
+    text: '',
+    toolCalls,
+  });
+  expect((await get(ctx, { sessionId }))?.response).toMatchObject({ text: '', toolCalls });
+  expect(await context(ctx, { sessionId })).toEqual([{ role: 'user', content: 'Show progress' }]);
+  await append(ctx, {
+    mode: 'analysis',
+    role: 'assistant',
+    sessionId,
+    messageId,
+    text: 'Your progress',
+    toolCalls: [{ ...toolCalls[0], output: '[]' }],
+  });
+  const saved = await conversation(ctx, { sessionId, paginationOpts: page });
+  expect(saved.page.filter((message) => message.role === 'assistant')).toHaveLength(1);
+  expect(saved.page[0]).toMatchObject({ _id: messageId, text: 'Your progress' });
+  vi.mocked(requireUserProfile).mockResolvedValue({ _id: 'other-user' } as Doc<'userProfiles'>);
+  await expect(
+    append(ctx, {
+      mode: 'analysis',
+      role: 'assistant',
+      messageId,
+      text: 'Changed',
+    }),
+  ).rejects.toThrow('Response not found');
+});

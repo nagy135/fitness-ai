@@ -15,6 +15,18 @@ export class ToolCallRecorder {
   readonly calls: ToolCallRecord[] = [];
   private byId = new Map<string, ToolCallRecord>();
 
+  constructor(private readonly publish?: (calls: ToolCallRecord[]) => Promise<unknown>) {}
+
+  private publishing = Promise.resolve();
+
+  private changed() {
+    const snapshot = this.calls.map((call) => ({ ...call }));
+    this.publishing = this.publishing.then(async () => {
+      await this.publish?.(snapshot);
+    });
+    return this.publishing;
+  }
+
   generation<
     T extends {
       onToolExecutionStart: (event: Start) => void;
@@ -23,11 +35,12 @@ export class ToolCallRecorder {
   >(observer: T) {
     return {
       ...observer,
-      onToolExecutionStart: (event: Start) => {
+      onToolExecutionStart: async (event: Start) => {
         this.record(event);
         observer.onToolExecutionStart(event);
+        await this.changed();
       },
-      onToolExecutionEnd: (event: End) => {
+      onToolExecutionEnd: async (event: End) => {
         const call = this.record(event);
         if (event.toolOutput.type === 'tool-error') {
           call.error = payload(event.toolOutput.error);
@@ -35,6 +48,7 @@ export class ToolCallRecorder {
           call.output = payload(event.toolOutput.output);
         }
         observer.onToolExecutionEnd(event);
+        await this.changed();
       },
     };
   }

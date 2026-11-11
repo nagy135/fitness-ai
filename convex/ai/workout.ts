@@ -43,7 +43,12 @@ export const respond = action({
         trace.status = 'reused';
         return { text: started.request.text!, toolCalls: started.request.toolCalls ?? [] };
       }
-      const toolCalls = new ToolCallRecorder();
+      const toolCalls = new ToolCallRecorder((calls) =>
+        ctx.runMutation(internal.aiMessages.publishWorkoutToolCalls, {
+          ...args,
+          toolCalls: calls,
+        }),
+      );
       const questions = createAskUser(ctx, { mode: 'workout', requestId: args.requestId });
       try {
         const [profile, catalog, draft, conversation] = await Promise.all([
