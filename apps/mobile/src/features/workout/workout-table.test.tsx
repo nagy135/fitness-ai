@@ -32,6 +32,7 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('lucide-react-native', () => ({
   Award: 'Award',
+  Check: 'Check',
   ChevronDown: 'ChevronDown',
   ChevronUp: 'ChevronUp',
   List: 'List',

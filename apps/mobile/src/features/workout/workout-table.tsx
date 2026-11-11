@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Award, ChevronDown, ChevronUp, List, Trash2, Trophy } from 'lucide-react-native';
+import { Award, Check, ChevronDown, ChevronUp, List, Trash2, Trophy } from 'lucide-react-native';
 import { useQuery } from 'convex/react';
 import { api } from '@fitness/convex/api';
 import { exerciseRecordImprovements } from '@fitness/domain';
@@ -51,7 +51,8 @@ export function WorkoutTable({
   ) => Promise<void>;
   onExample: (text: string) => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const completedColor = isDark ? '#4ade80' : '#15803d';
   const exerciseIds = [
     ...new Set(exercises.flatMap((row) => (row.exerciseId ? [row.exerciseId] : []))),
   ];
@@ -78,6 +79,8 @@ export function WorkoutTable({
     distanceMeters: 10,
   });
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Personal progress belongs to this mounted draft, never to saved workout data.
+  const [completedExercises, setCompletedExercises] = useState<Set<string>>(() => new Set());
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(() => new Set());
   const [previousExercises, setPreviousExercises] = useState(exercises);
   const [previousSavingSets, setPreviousSavingSets] = useState(savingSets);
@@ -120,6 +123,13 @@ export function WorkoutTable({
       setChanges({ version: changes.version + 1, ids: changedIds, setIds: changedSetIds });
     else if (manualChange && (changes.ids.length || changes.setIds.length))
       setChanges({ version: changes.version, ids: [], setIds: [] });
+    const remainingCompleted = new Set(
+      exercises
+        .filter((exercise) => completedExercises.has(exercise.rowId))
+        .map((exercise) => exercise.rowId),
+    );
+    if (remainingCompleted.size !== completedExercises.size)
+      setCompletedExercises(remainingCompleted);
     setPreviousExercises(exercises);
     setExpandedExercises(nextExercises);
     setExpanded(nextSets);
@@ -163,6 +173,7 @@ export function WorkoutTable({
               </Pressable>
             </View>
             {exercises.map((exercise) => {
+              const completed = completedExercises.has(exercise.rowId);
               const exerciseOpen = expandedExercises.has(exercise.rowId);
               const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;
               const records = exercise.exerciseId
@@ -175,7 +186,7 @@ export function WorkoutTable({
                     marginBottom: 6,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: colors.line,
+                    borderColor: completed ? completedColor : colors.line,
                     overflow: 'hidden',
                     backgroundColor: colors.panel,
                   }}
@@ -377,6 +388,32 @@ export function WorkoutTable({
                           {exercise.notes}
                         </Text>
                       ) : null}
+                      <View className="items-end px-3 pb-2 pt-1">
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${completed ? 'Unsettle' : 'Settle'} ${exercise.name}`}
+                          accessibilityHint="Toggles your personal completed marker for this workout"
+                          accessibilityState={{ selected: completed }}
+                          onPress={() =>
+                            setCompletedExercises((previous) => {
+                              const next = new Set(previous);
+                              if (next.has(exercise.rowId)) next.delete(exercise.rowId);
+                              else next.add(exercise.rowId);
+                              return next;
+                            })
+                          }
+                          className="min-h-11 flex-row items-center gap-1.5 rounded-lg border px-3 active:opacity-70"
+                          style={{ borderColor: completed ? completedColor : colors.line }}
+                        >
+                          <Check size={17} color={completed ? completedColor : colors.muted} />
+                          <Text
+                            className="text-sm font-semibold"
+                            style={{ color: completed ? completedColor : colors.text }}
+                          >
+                            {completed ? 'Settled' : 'Settle'}
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : null}
                 </WorkoutChangePulse>
