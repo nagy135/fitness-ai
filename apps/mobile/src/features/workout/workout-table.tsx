@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Award, Check, ChevronDown, ChevronUp, List, Trash2, Trophy } from 'lucide-react-native';
 import { useQuery } from 'convex/react';
@@ -12,7 +12,7 @@ import { SetMeasurement } from './set-measurement';
 import { WorkoutChangePulse } from './workout-change-pulse';
 import { SetOrderBadge } from './set-order-badge';
 import type { Id } from '@fitness/convex/data-model';
-import { ExerciseDragHandle } from './exercise-drag-handle';
+import { ExerciseReorderCard } from './exercise-reorder-card';
 import { useExerciseDrag } from './use-exercise-drag';
 import { moveExercise } from './exercise-reorder';
 import { ExerciseRecords } from './exercise-records';
@@ -47,7 +47,7 @@ export function WorkoutTable({
   savingSets?: boolean;
   onRemoveSet: (rowId: string, setId: string) => Promise<void>;
   onRemoveExercise: (rowId: string) => Promise<void>;
-  onReorder: (ids: string[]) => Promise<void>;
+  onReorder: (ids: string[]) => Promise<void | boolean>;
   onAdjustSet: (
     rowId: string,
     setId: string,
@@ -92,7 +92,20 @@ export function WorkoutTable({
   // Also skip the final save/rollback render when the last adjustment settles.
   const manualChange = savingSets || previousSavingSets;
   if (previousSavingSets !== savingSets) setPreviousSavingSets(savingSets);
-  const destructiveBusy = busy || savingSets;
+  const [reorderMode, setReorderMode] = useState<{
+    source: DraftExercise[];
+    ids: string[];
+    scroll: number;
+  }>();
+  const [savingOrder, setSavingOrder] = useState(false);
+  if (
+    reorderMode &&
+    reorderMode.source !== exercises &&
+    !savingOrder &&
+    JSON.stringify(reorderMode.source) !== JSON.stringify(exercises)
+  )
+    setReorderMode(undefined);
+  const destructiveBusy = busy || savingSets || savingOrder;
   const [changes, setChanges] = useState({
     version: 0,
     ids: [] as string[],
@@ -141,11 +154,80 @@ export function WorkoutTable({
   }
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
-  const drag = useExerciseDrag(exercises, scrollRef, (ids) => void onReorder(ids));
+  const displayedExercises = useMemo(() => {
+    if (!reorderMode) return exercises;
+    const byId = new Map(reorderMode.source.map((row) => [row.rowId, row]));
+    return reorderMode.ids.map((id) => byId.get(id)!);
+  }, [exercises, reorderMode]);
+  function stageOrder(ids: string[]) {
+    setReorderMode((current) => (current ? { ...current, ids } : undefined));
+  }
+  const drag = useExerciseDrag(displayedExercises, scrollRef, stageOrder);
+  function enterReorder() {
+    if (destructiveBusy || exercises.length < 2 || reorderMode) return;
+    pendingExerciseScroll.current = undefined;
+    setChanges((previous) => ({ ...previous, ids: [], setIds: [] }));
+    setReorderMode({
+      source: exercises,
+      ids: exercises.map((row) => row.rowId),
+      scroll: drag.getScroll(),
+    });
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }
+  function closeReorder() {
+    drag.cancel();
+    const scroll = reorderMode?.scroll ?? 0;
+    setReorderMode(undefined);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: scroll, animated: false }));
+  }
+  async function saveOrder() {
+    if (!reorderMode || destructiveBusy || drag.activeId) return;
+    if (reorderMode.ids.every((id, index) => id === exercises[index]?.rowId)) {
+      closeReorder();
+      return;
+    }
+    setSavingOrder(true);
+    try {
+      if ((await onReorder(reorderMode.ids)) !== false) closeReorder();
+    } finally {
+      setSavingOrder(false);
+    }
+  }
   const pendingExerciseScroll = useRef<string | undefined>(undefined);
   const setCount = exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
   return (
     <View className="flex-1">
+      {reorderMode ? (
+        <View className="flex-row items-center justify-between gap-2 px-5 pb-2">
+          <Text
+            accessibilityLiveRegion="polite"
+            className="flex-1 text-sm font-semibold text-accent dark:text-accent-dark"
+          >
+            Reorder exercises
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel reordering"
+            disabled={savingOrder}
+            onPress={closeReorder}
+            className="min-h-11 justify-center rounded-lg border border-line px-3 dark:border-line-dark"
+          >
+            <Text className="text-sm font-semibold text-ink dark:text-ink-dark">Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save exercise order"
+            accessibilityState={{ disabled: destructiveBusy || !!drag.activeId }}
+            disabled={destructiveBusy || !!drag.activeId}
+            onPress={() => void saveOrder()}
+            className="min-h-11 justify-center rounded-lg bg-accent px-3 dark:bg-accent-dark"
+          >
+            <Text className="text-sm font-semibold text-accent-ink dark:text-accent-ink-dark">
+              {savingOrder ? 'Saving…' : 'Done'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         scrollEnabled={!drag.activeId}
@@ -168,40 +250,61 @@ export function WorkoutTable({
       >
         {exercises.length === 0 ? null : (
           <View ref={contentRef} collapsable={false}>
-            <View className="mb-1 flex-row flex-wrap items-center justify-between gap-x-3">
-              <Text className="text-sm text-muted dark:text-muted-dark">
-                {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} · {setCount}{' '}
-                {setCount === 1 ? 'set' : 'sets'}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Show all exercises"
-                accessibilityHint="Collapses the sets and returns to the exercise overview"
-                onPress={() => {
-                  pendingExerciseScroll.current = undefined;
-                  setExpandedExercises(new Set());
-                  setExpanded(new Set());
-                  setChanges((previous) => ({ ...previous, setIds: [] }));
-                  scrollRef.current?.scrollTo({ y: 0, animated: false });
-                }}
-                className="min-h-8 flex-row items-center gap-1.5 rounded-lg px-2 active:bg-soft dark:active:bg-soft-dark"
-              >
-                <List size={18} color={colors.accent} />
-                <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
-                  All exercises
+            {!reorderMode ? (
+              <View className="mb-1 flex-row flex-wrap items-center justify-between gap-x-3">
+                <Text className="text-sm text-muted dark:text-muted-dark">
+                  {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} ·{' '}
+                  {setCount} {setCount === 1 ? 'set' : 'sets'}
                 </Text>
-              </Pressable>
-            </View>
-            {exercises.map((exercise, exerciseIndex) => {
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Show all exercises"
+                  accessibilityHint="Collapses the sets and returns to the exercise overview"
+                  onPress={() => {
+                    pendingExerciseScroll.current = undefined;
+                    setExpandedExercises(new Set());
+                    setExpanded(new Set());
+                    setChanges((previous) => ({ ...previous, setIds: [] }));
+                    scrollRef.current?.scrollTo({ y: 0, animated: false });
+                  }}
+                  className="min-h-8 flex-row items-center gap-1.5 rounded-lg px-2 active:bg-soft dark:active:bg-soft-dark"
+                >
+                  <List size={18} color={colors.accent} />
+                  <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
+                    All exercises
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {displayedExercises.map((exercise, exerciseIndex) => {
               const completed = completedExercises.has(exercise.rowId);
-              const exerciseOpen = expandedExercises.has(exercise.rowId);
+              const exerciseOpen = !reorderMode && expandedExercises.has(exercise.rowId);
               const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;
               const records = exercise.exerciseId
                 ? improvements.get(exercise.exerciseId)
                 : undefined;
               return (
-                <View
+                <ExerciseReorderCard
                   key={exercise.rowId}
+                  name={exercise.name}
+                  reordering={!!reorderMode}
+                  disabled={destructiveBusy || exercises.length < 2}
+                  canMoveUp={exerciseIndex > 0}
+                  canMoveDown={exerciseIndex < displayedExercises.length - 1}
+                  onEnter={enterReorder}
+                  onStart={(pageY) => drag.start(exercise.rowId, pageY)}
+                  onMove={drag.move}
+                  onEnd={drag.end}
+                  onCancel={drag.cancel}
+                  onStep={(delta) =>
+                    stageOrder(
+                      moveExercise(
+                        displayedExercises.map((row) => row.rowId),
+                        exerciseIndex,
+                        exerciseIndex + delta,
+                      ),
+                    )
+                  }
                   style={{
                     marginBottom: 6,
                     zIndex: drag.activeId === exercise.rowId ? 10 : 0,
@@ -228,8 +331,10 @@ export function WorkoutTable({
                       overflow: 'hidden',
                       backgroundColor: colors.panel,
                     }}
-                    pulseVersion={changes.ids.includes(exercise.rowId) ? changes.version : 0}
-                    reveal={!drag.activeId && changes.ids[0] === exercise.rowId}
+                    pulseVersion={
+                      !reorderMode && changes.ids.includes(exercise.rowId) ? changes.version : 0
+                    }
+                    reveal={!reorderMode && changes.ids[0] === exercise.rowId}
                     contentRef={contentRef}
                     scrollRef={scrollRef}
                   >
@@ -241,7 +346,12 @@ export function WorkoutTable({
                           exerciseOpen ? 'Hide sets' : 'Show sets to review or edit'
                         }
                         accessibilityState={{ expanded: exerciseOpen }}
+                        accessibilityActions={[{ name: 'longpress', label: 'Reorder exercises' }]}
+                        onAccessibilityAction={({ nativeEvent }) => {
+                          if (nativeEvent.actionName === 'longpress') enterReorder();
+                        }}
                         onPress={() => {
+                          if (reorderMode) return;
                           pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
                           // Reopening manually must not replay an old set update.
                           setChanges((previous) => ({
@@ -265,44 +375,27 @@ export function WorkoutTable({
                             ({countLabel})
                           </Text>
                         </Text>
-                        {exerciseOpen ? (
+                        {reorderMode ? null : exerciseOpen ? (
                           <ChevronUp size={20} color={colors.accent} />
                         ) : (
                           <ChevronDown size={20} color={colors.muted} />
                         )}
                       </Pressable>
-                      <ExerciseDragHandle
-                        name={exercise.name}
-                        disabled={destructiveBusy || exercises.length < 2}
-                        canMoveUp={exerciseIndex > 0}
-                        canMoveDown={exerciseIndex < exercises.length - 1}
-                        onStart={(pageY) => drag.start(exercise.rowId, pageY)}
-                        onMove={drag.move}
-                        onEnd={drag.end}
-                        onCancel={drag.cancel}
-                        onStep={(delta) =>
-                          void onReorder(
-                            moveExercise(
-                              exercises.map((row) => row.rowId),
-                              exerciseIndex,
-                              exerciseIndex + delta,
-                            ),
-                          )
-                        }
-                      />
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Delete ${exercise.name} from current workout`}
-                        accessibilityHint="Removes this exercise and all its sets from the draft"
-                        accessibilityState={{ disabled: destructiveBusy }}
-                        disabled={destructiveBusy}
-                        onPress={() => void onRemoveExercise(exercise.rowId)}
-                        className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
-                      >
-                        <Trash2 size={17} color={colors.danger} />
-                      </Pressable>
+                      {!reorderMode ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete ${exercise.name} from current workout`}
+                          accessibilityHint="Removes this exercise and all its sets from the draft"
+                          accessibilityState={{ disabled: destructiveBusy }}
+                          disabled={destructiveBusy}
+                          onPress={() => void onRemoveExercise(exercise.rowId)}
+                          className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
+                        >
+                          <Trash2 size={17} color={colors.danger} />
+                        </Pressable>
+                      ) : null}
                     </View>
-                    {records?.volume || records?.maxSet ? (
+                    {!reorderMode && (records?.volume || records?.maxSet) ? (
                       <View
                         accessibilityLiveRegion="polite"
                         className="flex-row flex-wrap gap-1.5 px-3 pb-1"
@@ -468,7 +561,7 @@ export function WorkoutTable({
                       </View>
                     ) : null}
                   </WorkoutChangePulse>
-                </View>
+                </ExerciseReorderCard>
               );
             })}
           </View>

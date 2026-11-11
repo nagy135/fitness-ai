@@ -78,6 +78,9 @@ export function useExerciseDrag(
     return 0;
   }
   return {
+    getScroll() {
+      return viewport.current.offset;
+    },
     setLayout(rowId: string, layout: ExerciseLayout) {
       layouts.current.set(rowId, layout);
     },

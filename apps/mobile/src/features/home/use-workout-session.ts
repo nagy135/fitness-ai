@@ -236,8 +236,14 @@ export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
         setResponses((previous) => ({ ...previous, workout: undefined }));
       }),
     adjustSet,
-    reorderExercises: (orderedRowIds: string[]) =>
-      edit(() => reorder({ orderedRowIds, source: 'user_ui' })),
+    reorderExercises: async (orderedRowIds: string[]) => {
+      let saved = false;
+      await edit(async () => {
+        await reorder({ orderedRowIds, source: 'user_ui' });
+        saved = true;
+      });
+      return saved;
+    },
     removeSet: (rowId: string, setId: string) =>
       edit(() => remove({ rowId, setId, source: 'user_ui' })),
     removeExercise: (rowId: string) => edit(() => removeExercise({ rowId, source: 'user_ui' })),

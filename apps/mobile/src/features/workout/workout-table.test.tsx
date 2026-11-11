@@ -39,7 +39,7 @@ vi.mock('lucide-react-native', () => ({
   Trash2: 'Trash2',
   Trophy: 'Trophy',
 }));
-vi.mock('./exercise-drag-handle', () => ({ ExerciseDragHandle: 'ExerciseDragHandle' }));
+vi.mock('./exercise-reorder-card', () => ({ ExerciseReorderCard: 'ExerciseReorderCard' }));
 vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
 vi.mock('./exercise-records', () => ({ ExerciseRecords: 'ExerciseRecords' }));
 vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton' }));
@@ -353,4 +353,67 @@ it('waits for saved baselines and combines duplicate rows for the same exercise'
     renderer.root.findAllByProps({ accessibilityLabel: 'Volume personal record for Squat' }),
   ).toHaveLength(1);
   expect(JSON.stringify(renderer.toJSON())).not.toContain('Max set PR');
+});
+
+const cards = () => renderer.root.findAllByType('ExerciseReorderCard' as never);
+it('collapses every exercise for staged reordering and Cancel restores the original view', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  await act(() => find('Settle Bench').props.onPress());
+  await act(() => cards()[0].props.onEnter());
+  expect(cards().every((card) => card.props.reordering)).toBe(true);
+  expect(isOpen('Bench, 1 set')).toBe(false);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: 'Delete Bench from current workout' }),
+  ).toHaveLength(0);
+  await act(() => cards()[0].props.onStep(1));
+  expect(cards().map((card) => card.props.name)).toEqual(['Squat', 'Bench']);
+  expect(props.onReorder).not.toHaveBeenCalled();
+  await act(() => find('Cancel reordering').props.onPress());
+  expect(cards().map((card) => card.props.name)).toEqual(['Bench', 'Squat']);
+  expect(isOpen('Bench, 1 set')).toBe(true);
+  expect(find('Unsettle Bench').props.accessibilityState.selected).toBe(true);
+  expect(props.onReorder).not.toHaveBeenCalled();
+});
+
+it('saves only the final order when Done is chosen', async () => {
+  props.onReorder.mockResolvedValue(true);
+  await act(() => cards()[0].props.onEnter());
+  await act(() => cards()[0].props.onStep(1));
+  expect(props.onReorder).not.toHaveBeenCalled();
+  await act(async () => {
+    await find('Save exercise order').props.onPress();
+  });
+  expect(props.onReorder).toHaveBeenCalledExactlyOnceWith(['Squat', 'Bench']);
+  expect(cards().every((card) => !card.props.reordering)).toBe(true);
+});
+
+it('keeps the order preview open if saving fails', async () => {
+  props.onReorder.mockResolvedValue(false);
+  await act(() => cards()[0].props.onEnter());
+  await act(() => cards()[0].props.onStep(1));
+  await act(async () => {
+    await find('Save exercise order').props.onPress();
+  });
+  expect(cards().every((card) => card.props.reordering)).toBe(true);
+  expect(cards().map((card) => card.props.name)).toEqual(['Squat', 'Bench']);
+});
+
+it('discards a stale preview when exercises change on another device', async () => {
+  await act(() => cards()[0].props.onEnter());
+  await act(() => cards()[0].props.onStep(1));
+  await update([...exercises, { rowId: 'New', name: 'New exercise', sets: [] }]);
+  expect(cards().every((card) => !card.props.reordering)).toBe(true);
+  expect(props.onReorder).not.toHaveBeenCalled();
+});
+
+it('retains the preview across equivalent query results after a save failure', async () => {
+  props.onReorder.mockResolvedValue(false);
+  await act(() => cards()[0].props.onEnter());
+  await act(() => cards()[0].props.onStep(1));
+  await act(async () => {
+    await find('Save exercise order').props.onPress();
+  });
+  await update(exercises.map((exercise) => ({ ...exercise })));
+  expect(cards().every((card) => card.props.reordering)).toBe(true);
+  expect(cards().map((card) => card.props.name)).toEqual(['Squat', 'Bench']);
 });
