@@ -22,6 +22,7 @@ vi.mock('@fitness/convex/api', () => ({
       adjustSet: 'adjust',
       removeSet: 'remove',
       removeExercise: 'removeExercise',
+      reorderExercises: 'reorder',
     },
     workouts: { cancelEdit: 'cancel', recent: 'workouts' },
     aiMessages: {
@@ -39,7 +40,11 @@ vi.mock('convex/react', () => ({
   useConvexAuth: () => ({ isAuthenticated: true }),
   useAction: () => mocks.action,
   useMutation: (ref: string) =>
-    ref === 'adjust' ? { withOptimisticUpdate: () => mocks.adjustment } : mocks.mutation,
+    ref === 'adjust'
+      ? { withOptimisticUpdate: () => mocks.adjustment }
+      : ref === 'reorder'
+        ? { withOptimisticUpdate: () => mocks.mutation }
+        : mocks.mutation,
   useQuery: (ref: string, args: unknown) =>
     args === 'skip'
       ? undefined

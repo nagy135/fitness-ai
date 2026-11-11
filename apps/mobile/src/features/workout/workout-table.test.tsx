@@ -39,6 +39,7 @@ vi.mock('lucide-react-native', () => ({
   Trash2: 'Trash2',
   Trophy: 'Trophy',
 }));
+vi.mock('./exercise-drag-handle', () => ({ ExerciseDragHandle: 'ExerciseDragHandle' }));
 vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
 vi.mock('./exercise-records', () => ({ ExerciseRecords: 'ExerciseRecords' }));
 vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton' }));
@@ -54,6 +55,7 @@ const props = {
   busy: false,
   onRemoveSet: vi.fn(),
   onRemoveExercise: vi.fn(),
+  onReorder: vi.fn(),
   onAdjustSet: vi.fn(),
   onExample: vi.fn(),
 };

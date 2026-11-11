@@ -12,6 +12,9 @@ import { SetMeasurement } from './set-measurement';
 import { WorkoutChangePulse } from './workout-change-pulse';
 import { SetOrderBadge } from './set-order-badge';
 import type { Id } from '@fitness/convex/data-model';
+import { ExerciseDragHandle } from './exercise-drag-handle';
+import { useExerciseDrag } from './use-exercise-drag';
+import { moveExercise } from './exercise-reorder';
 import { ExerciseRecords } from './exercise-records';
 
 type DraftSet = WorkoutSet & { setId: string };
@@ -35,6 +38,7 @@ export function WorkoutTable({
   savingSets = false,
   onRemoveSet,
   onRemoveExercise,
+  onReorder,
   onAdjustSet,
   onExample,
 }: {
@@ -43,6 +47,7 @@ export function WorkoutTable({
   savingSets?: boolean;
   onRemoveSet: (rowId: string, setId: string) => Promise<void>;
   onRemoveExercise: (rowId: string) => Promise<void>;
+  onReorder: (ids: string[]) => Promise<void>;
   onAdjustSet: (
     rowId: string,
     setId: string,
@@ -136,12 +141,27 @@ export function WorkoutTable({
   }
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
+  const drag = useExerciseDrag(exercises, scrollRef, (ids) => void onReorder(ids));
   const pendingExerciseScroll = useRef<string | undefined>(undefined);
   const setCount = exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
   return (
     <View className="flex-1">
       <ScrollView
         ref={scrollRef}
+        scrollEnabled={!drag.activeId}
+        removeClippedSubviews={false}
+        scrollEventThrottle={16}
+        onScroll={({ nativeEvent }) => {
+          drag.setScroll(nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(_width, height) => {
+          drag.setContentHeight(height);
+        }}
+        onLayout={() =>
+          scrollRef.current?.getNativeScrollRef()?.measureInWindow((_x, y, _width, height) => {
+            drag.setViewport(y, height);
+          })
+        }
         className="flex-1"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="grow px-5 pb-2 pt-1"
@@ -172,7 +192,7 @@ export function WorkoutTable({
                 </Text>
               </Pressable>
             </View>
-            {exercises.map((exercise) => {
+            {exercises.map((exercise, exerciseIndex) => {
               const completed = completedExercises.has(exercise.rowId);
               const exerciseOpen = expandedExercises.has(exercise.rowId);
               const countLabel = `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'}`;
@@ -180,22 +200,16 @@ export function WorkoutTable({
                 ? improvements.get(exercise.exerciseId)
                 : undefined;
               return (
-                <WorkoutChangePulse
+                <View
                   key={exercise.rowId}
                   style={{
                     marginBottom: 6,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: completed ? completedColor : colors.line,
-                    overflow: 'hidden',
-                    backgroundColor: colors.panel,
+                    zIndex: drag.activeId === exercise.rowId ? 10 : 0,
+                    elevation: drag.activeId === exercise.rowId ? 8 : 0,
+                    transform: [{ translateY: drag.offset(exercise.rowId) }],
                   }}
-                  pulseVersion={changes.ids.includes(exercise.rowId) ? changes.version : 0}
-                  reveal={changes.ids[0] === exercise.rowId}
-                  contentRef={contentRef}
-                  scrollRef={scrollRef}
                   onLayout={({ nativeEvent }) => {
-                    // Use the new position after the exercise expands.
+                    drag.setLayout(exercise.rowId, nativeEvent.layout);
                     if (exerciseOpen && pendingExerciseScroll.current === exercise.rowId) {
                       pendingExerciseScroll.current = undefined;
                       scrollRef.current?.scrollTo({
@@ -205,218 +219,256 @@ export function WorkoutTable({
                     }
                   }}
                 >
-                  <View className="flex-row items-center pr-1">
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${exercise.name}, ${countLabel}`}
-                      accessibilityHint={exerciseOpen ? 'Hide sets' : 'Show sets to review or edit'}
-                      accessibilityState={{ expanded: exerciseOpen }}
-                      onPress={() => {
-                        pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
-                        // Reopening manually must not replay an old set update.
-                        setChanges((previous) => ({
-                          ...previous,
-                          setIds: previous.setIds.filter(
-                            (id) => !exercise.sets.some((set) => set.setId === id),
-                          ),
-                        }));
-                        setExpandedExercises((previous) => {
-                          const next = new Set(previous);
-                          if (exerciseOpen) next.delete(exercise.rowId);
-                          else next.add(exercise.rowId);
-                          return next;
-                        });
-                      }}
-                      className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1.5 active:bg-soft dark:active:bg-soft-dark"
-                    >
-                      <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
-                        {exercise.name}{' '}
-                        <Text className="text-sm font-normal text-muted dark:text-muted-dark">
-                          ({countLabel})
+                  <WorkoutChangePulse
+                    style={{
+                      borderRadius: 12,
+                      opacity: drag.activeId === exercise.rowId ? 0.95 : 1,
+                      borderWidth: 1,
+                      borderColor: completed ? completedColor : colors.line,
+                      overflow: 'hidden',
+                      backgroundColor: colors.panel,
+                    }}
+                    pulseVersion={changes.ids.includes(exercise.rowId) ? changes.version : 0}
+                    reveal={!drag.activeId && changes.ids[0] === exercise.rowId}
+                    contentRef={contentRef}
+                    scrollRef={scrollRef}
+                  >
+                    <View className="flex-row items-center pr-1">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${exercise.name}, ${countLabel}`}
+                        accessibilityHint={
+                          exerciseOpen ? 'Hide sets' : 'Show sets to review or edit'
+                        }
+                        accessibilityState={{ expanded: exerciseOpen }}
+                        onPress={() => {
+                          pendingExerciseScroll.current = exerciseOpen ? undefined : exercise.rowId;
+                          // Reopening manually must not replay an old set update.
+                          setChanges((previous) => ({
+                            ...previous,
+                            setIds: previous.setIds.filter(
+                              (id) => !exercise.sets.some((set) => set.setId === id),
+                            ),
+                          }));
+                          setExpandedExercises((previous) => {
+                            const next = new Set(previous);
+                            if (exerciseOpen) next.delete(exercise.rowId);
+                            else next.add(exercise.rowId);
+                            return next;
+                          });
+                        }}
+                        className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1.5 active:bg-soft dark:active:bg-soft-dark"
+                      >
+                        <Text className="flex-1 text-base font-semibold text-ink dark:text-ink-dark">
+                          {exercise.name}{' '}
+                          <Text className="text-sm font-normal text-muted dark:text-muted-dark">
+                            ({countLabel})
+                          </Text>
                         </Text>
-                      </Text>
-                      {exerciseOpen ? (
-                        <ChevronUp size={20} color={colors.accent} />
-                      ) : (
-                        <ChevronDown size={20} color={colors.muted} />
-                      )}
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Delete ${exercise.name} from current workout`}
-                      accessibilityHint="Removes this exercise and all its sets from the draft"
-                      accessibilityState={{ disabled: destructiveBusy }}
-                      disabled={destructiveBusy}
-                      onPress={() => void onRemoveExercise(exercise.rowId)}
-                      className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
-                    >
-                      <Trash2 size={17} color={colors.danger} />
-                    </Pressable>
-                  </View>
-                  {records?.volume || records?.maxSet ? (
-                    <View
-                      accessibilityLiveRegion="polite"
-                      className="flex-row flex-wrap gap-1.5 px-3 pb-1"
-                    >
-                      {records.volume ? (
-                        <View
-                          accessible
-                          accessibilityLabel={`Volume personal record for ${exercise.name}`}
-                          className="flex-row items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 dark:bg-accent-dark/15"
-                        >
-                          <Trophy size={14} color={colors.accent} />
-                          <Text className="text-xs font-semibold text-accent dark:text-accent-dark">
-                            Volume PR
-                          </Text>
-                        </View>
-                      ) : null}
-                      {records.maxSet ? (
-                        <View
-                          accessible
-                          accessibilityLabel={`Max set personal record for ${exercise.name}`}
-                          className="flex-row items-center gap-1 rounded-full bg-highlight px-2 py-0.5 dark:bg-highlight-dark"
-                        >
-                          <Award size={14} color={colors.highlightInk} />
-                          <Text className="text-xs font-semibold text-highlight-ink dark:text-highlight-ink-dark">
-                            Max set PR
-                          </Text>
-                        </View>
-                      ) : null}
+                        {exerciseOpen ? (
+                          <ChevronUp size={20} color={colors.accent} />
+                        ) : (
+                          <ChevronDown size={20} color={colors.muted} />
+                        )}
+                      </Pressable>
+                      <ExerciseDragHandle
+                        name={exercise.name}
+                        disabled={destructiveBusy || exercises.length < 2}
+                        canMoveUp={exerciseIndex > 0}
+                        canMoveDown={exerciseIndex < exercises.length - 1}
+                        onStart={(pageY) => drag.start(exercise.rowId, pageY)}
+                        onMove={drag.move}
+                        onEnd={drag.end}
+                        onCancel={drag.cancel}
+                        onStep={(delta) =>
+                          void onReorder(
+                            moveExercise(
+                              exercises.map((row) => row.rowId),
+                              exerciseIndex,
+                              exerciseIndex + delta,
+                            ),
+                          )
+                        }
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${exercise.name} from current workout`}
+                        accessibilityHint="Removes this exercise and all its sets from the draft"
+                        accessibilityState={{ disabled: destructiveBusy }}
+                        disabled={destructiveBusy}
+                        onPress={() => void onRemoveExercise(exercise.rowId)}
+                        className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
+                      >
+                        <Trash2 size={17} color={colors.danger} />
+                      </Pressable>
                     </View>
-                  ) : null}
-                  {exerciseOpen ? (
-                    <View className="border-t border-line dark:border-line-dark">
-                      {exercise.exerciseId ? (
-                        <ExerciseRecords
-                          exerciseId={exercise.exerciseId}
-                          name={exercise.name}
-                          busy={destructiveBusy}
-                          onExample={onExample}
-                        />
-                      ) : null}
-                      {exercise.sets.map((set, index) => {
-                        const open = expanded.has(set.setId);
-                        return (
+                    {records?.volume || records?.maxSet ? (
+                      <View
+                        accessibilityLiveRegion="polite"
+                        className="flex-row flex-wrap gap-1.5 px-3 pb-1"
+                      >
+                        {records.volume ? (
                           <View
-                            key={set.setId}
-                            className={index ? 'border-t border-line dark:border-line-dark' : ''}
+                            accessible
+                            accessibilityLabel={`Volume personal record for ${exercise.name}`}
+                            className="flex-row items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 dark:bg-accent-dark/15"
                           >
-                            <View className="flex-row items-center pr-1">
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
-                                accessibilityState={{ expanded: open }}
-                                onPress={() =>
-                                  setExpanded((previous) => {
-                                    const next = new Set(previous);
-                                    if (open) next.delete(set.setId);
-                                    else next.add(set.setId);
-                                    return next;
-                                  })
-                                }
-                                className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1 active:bg-soft dark:active:bg-soft-dark"
-                              >
-                                <SetOrderBadge
-                                  number={index + 1}
-                                  version={changes.setIds.includes(set.setId) ? changes.version : 0}
-                                />
-                                <SetMeasurement set={set} compact className="flex-1 leading-6" />
-                                {open ? (
-                                  <ChevronUp size={18} color={colors.muted} />
-                                ) : (
-                                  <ChevronDown size={18} color={colors.muted} />
-                                )}
-                              </Pressable>
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`Remove ${exercise.name} set ${index + 1}`}
-                                accessibilityHint="Removes this set from the draft"
-                                accessibilityState={{ disabled: destructiveBusy }}
-                                disabled={destructiveBusy}
-                                onPress={() => void onRemoveSet(exercise.rowId, set.setId)}
-                                className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
-                              >
-                                <Trash2 size={17} color={colors.danger} />
-                              </Pressable>
-                            </View>
-                            {open ? (
-                              <View className="gap-1.5 border-t border-line px-3 py-1.5 dark:border-line-dark">
-                                {measures.map(({ field, label, unit, steps }) => {
-                                  const value = set[field];
-                                  if (value === undefined) return null;
-                                  return (
-                                    <MeasurementStepper
-                                      key={field}
-                                      label={label}
-                                      unit={unit}
-                                      value={value}
-                                      steps={steps}
-                                      step={adjustmentSteps[field]}
-                                      busy={busy}
-                                      context={`${exercise.name} set ${index + 1}`}
-                                      onStepChange={(step) =>
-                                        setAdjustmentSteps((previous) => ({
-                                          ...previous,
-                                          [field]: step,
-                                        }))
-                                      }
-                                      onAdjust={(delta) =>
-                                        void onAdjustSet(exercise.rowId, set.setId, field, delta)
-                                      }
-                                    />
-                                  );
-                                })}
-                                {set.notes ? (
-                                  <Text className="text-sm text-muted dark:text-muted-dark">
-                                    {set.notes}
-                                  </Text>
-                                ) : null}
-                              </View>
-                            ) : null}
+                            <Trophy size={14} color={colors.accent} />
+                            <Text className="text-xs font-semibold text-accent dark:text-accent-dark">
+                              Volume PR
+                            </Text>
                           </View>
-                        );
-                      })}
-                      {!exercise.sets.length ? (
-                        <View className="gap-1 px-3 py-2">
-                          <Text className="text-sm text-muted dark:text-muted-dark">
-                            Log a set below, or remove this exercise before saving.
-                          </Text>
-                        </View>
-                      ) : null}
-                      {exercise.notes ? (
-                        <Text className="px-3 pb-2 pt-1 text-sm leading-5 text-muted dark:text-muted-dark">
-                          {exercise.notes}
-                        </Text>
-                      ) : null}
-                      <View className="items-end px-3 pb-2 pt-1">
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`${completed ? 'Unsettle' : 'Settle'} ${exercise.name}`}
-                          accessibilityHint="Toggles your personal completed marker for this workout"
-                          accessibilityState={{ selected: completed }}
-                          onPress={() =>
-                            setCompletedExercises((previous) => {
-                              const next = new Set(previous);
-                              if (next.has(exercise.rowId)) next.delete(exercise.rowId);
-                              else next.add(exercise.rowId);
-                              return next;
-                            })
-                          }
-                          className="min-h-11 flex-row items-center gap-1.5 rounded-lg border px-3 active:opacity-70"
-                          style={{ borderColor: completed ? completedColor : colors.line }}
-                        >
-                          <Check size={17} color={completed ? completedColor : colors.muted} />
-                          <Text
-                            className="text-sm font-semibold"
-                            style={{ color: completed ? completedColor : colors.text }}
+                        ) : null}
+                        {records.maxSet ? (
+                          <View
+                            accessible
+                            accessibilityLabel={`Max set personal record for ${exercise.name}`}
+                            className="flex-row items-center gap-1 rounded-full bg-highlight px-2 py-0.5 dark:bg-highlight-dark"
                           >
-                            {completed ? 'Settled' : 'Settle'}
-                          </Text>
-                        </Pressable>
+                            <Award size={14} color={colors.highlightInk} />
+                            <Text className="text-xs font-semibold text-highlight-ink dark:text-highlight-ink-dark">
+                              Max set PR
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
-                    </View>
-                  ) : null}
-                </WorkoutChangePulse>
+                    ) : null}
+                    {exerciseOpen ? (
+                      <View className="border-t border-line dark:border-line-dark">
+                        {exercise.exerciseId ? (
+                          <ExerciseRecords
+                            exerciseId={exercise.exerciseId}
+                            name={exercise.name}
+                            busy={destructiveBusy}
+                            onExample={onExample}
+                          />
+                        ) : null}
+                        {exercise.sets.map((set, index) => {
+                          const open = expanded.has(set.setId);
+                          return (
+                            <View
+                              key={set.setId}
+                              className={index ? 'border-t border-line dark:border-line-dark' : ''}
+                            >
+                              <View className="flex-row items-center pr-1">
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Edit ${exercise.name} set ${index + 1}: ${formatSet(set)}`}
+                                  accessibilityState={{ expanded: open }}
+                                  onPress={() =>
+                                    setExpanded((previous) => {
+                                      const next = new Set(previous);
+                                      if (open) next.delete(set.setId);
+                                      else next.add(set.setId);
+                                      return next;
+                                    })
+                                  }
+                                  className="min-h-11 flex-1 flex-row items-center gap-2 px-3 py-1 active:bg-soft dark:active:bg-soft-dark"
+                                >
+                                  <SetOrderBadge
+                                    number={index + 1}
+                                    version={
+                                      changes.setIds.includes(set.setId) ? changes.version : 0
+                                    }
+                                  />
+                                  <SetMeasurement set={set} compact className="flex-1 leading-6" />
+                                  {open ? (
+                                    <ChevronUp size={18} color={colors.muted} />
+                                  ) : (
+                                    <ChevronDown size={18} color={colors.muted} />
+                                  )}
+                                </Pressable>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Remove ${exercise.name} set ${index + 1}`}
+                                  accessibilityHint="Removes this set from the draft"
+                                  accessibilityState={{ disabled: destructiveBusy }}
+                                  disabled={destructiveBusy}
+                                  onPress={() => void onRemoveSet(exercise.rowId, set.setId)}
+                                  className={`h-11 w-11 items-center justify-center rounded-lg active:bg-soft dark:active:bg-soft-dark ${destructiveBusy ? 'opacity-40' : ''}`}
+                                >
+                                  <Trash2 size={17} color={colors.danger} />
+                                </Pressable>
+                              </View>
+                              {open ? (
+                                <View className="gap-1.5 border-t border-line px-3 py-1.5 dark:border-line-dark">
+                                  {measures.map(({ field, label, unit, steps }) => {
+                                    const value = set[field];
+                                    if (value === undefined) return null;
+                                    return (
+                                      <MeasurementStepper
+                                        key={field}
+                                        label={label}
+                                        unit={unit}
+                                        value={value}
+                                        steps={steps}
+                                        step={adjustmentSteps[field]}
+                                        busy={busy}
+                                        context={`${exercise.name} set ${index + 1}`}
+                                        onStepChange={(step) =>
+                                          setAdjustmentSteps((previous) => ({
+                                            ...previous,
+                                            [field]: step,
+                                          }))
+                                        }
+                                        onAdjust={(delta) =>
+                                          void onAdjustSet(exercise.rowId, set.setId, field, delta)
+                                        }
+                                      />
+                                    );
+                                  })}
+                                  {set.notes ? (
+                                    <Text className="text-sm text-muted dark:text-muted-dark">
+                                      {set.notes}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              ) : null}
+                            </View>
+                          );
+                        })}
+                        {!exercise.sets.length ? (
+                          <View className="gap-1 px-3 py-2">
+                            <Text className="text-sm text-muted dark:text-muted-dark">
+                              Log a set below, or remove this exercise before saving.
+                            </Text>
+                          </View>
+                        ) : null}
+                        {exercise.notes ? (
+                          <Text className="px-3 pb-2 pt-1 text-sm leading-5 text-muted dark:text-muted-dark">
+                            {exercise.notes}
+                          </Text>
+                        ) : null}
+                        <View className="items-end px-3 pb-2 pt-1">
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${completed ? 'Unsettle' : 'Settle'} ${exercise.name}`}
+                            accessibilityHint="Toggles your personal completed marker for this workout"
+                            accessibilityState={{ selected: completed }}
+                            onPress={() =>
+                              setCompletedExercises((previous) => {
+                                const next = new Set(previous);
+                                if (next.has(exercise.rowId)) next.delete(exercise.rowId);
+                                else next.add(exercise.rowId);
+                                return next;
+                              })
+                            }
+                            className="min-h-11 flex-row items-center gap-1.5 rounded-lg border px-3 active:opacity-70"
+                            style={{ borderColor: completed ? completedColor : colors.line }}
+                          >
+                            <Check size={17} color={completed ? completedColor : colors.muted} />
+                            <Text
+                              className="text-sm font-semibold"
+                              style={{ color: completed ? completedColor : colors.text }}
+                            >
+                              {completed ? 'Settled' : 'Settle'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
+                  </WorkoutChangePulse>
+                </View>
               );
             })}
           </View>

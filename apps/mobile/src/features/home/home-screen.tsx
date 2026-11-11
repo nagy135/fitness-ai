@@ -180,6 +180,7 @@ export default function HomeScreen() {
             savingSets={session.savingSets}
             onRemoveSet={session.removeSet}
             onRemoveExercise={session.removeExercise}
+            onReorder={session.reorderExercises}
             onAdjustSet={session.adjustSet}
             onExample={setPrompt}
           />

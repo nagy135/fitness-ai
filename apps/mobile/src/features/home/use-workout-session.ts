@@ -53,6 +53,24 @@ export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
     optimisticSetAdjustment,
   );
   const remove = useMutation(api.workoutDrafts.removeSet);
+  const reorder = useMutation(api.workoutDrafts.reorderExercises).withOptimisticUpdate(
+    (store, { orderedRowIds }) => {
+      const current = store.getQuery(api.workoutDrafts.current, {});
+      if (!current) return;
+      const byId = new Map(current.exercises.map((row) => [row.rowId, row]));
+      if (
+        orderedRowIds.length !== byId.size ||
+        new Set(orderedRowIds).size !== byId.size ||
+        orderedRowIds.some((id) => !byId.has(id))
+      )
+        return;
+      store.setQuery(
+        api.workoutDrafts.current,
+        {},
+        { ...current, exercises: orderedRowIds.map((id) => byId.get(id)!) },
+      );
+    },
+  );
   const removeExercise = useMutation(api.workoutDrafts.removeExercise);
   const prepareWorkoutRequest = useMutation(api.aiMessages.prepareWorkoutRequest);
   const acknowledgeWorkoutRequest = useMutation(api.aiMessages.acknowledgeWorkoutRequest);
@@ -218,6 +236,8 @@ export function useWorkoutSession(mode: FitnessMode, historyOpen: boolean) {
         setResponses((previous) => ({ ...previous, workout: undefined }));
       }),
     adjustSet,
+    reorderExercises: (orderedRowIds: string[]) =>
+      edit(() => reorder({ orderedRowIds, source: 'user_ui' })),
     removeSet: (rowId: string, setId: string) =>
       edit(() => remove({ rowId, setId, source: 'user_ui' })),
     removeExercise: (rowId: string) => edit(() => removeExercise({ rowId, source: 'user_ui' })),
