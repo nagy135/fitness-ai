@@ -247,6 +247,7 @@ export function WorkoutTable({
         className="flex-1"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="grow px-5 pb-2 pt-1"
+        contentContainerStyle={{ paddingTop: reorderMode ? 12 : 4 }}
       >
         {exercises.length === 0 ? null : (
           <View ref={contentRef} collapsable={false}>
@@ -561,6 +562,29 @@ export function WorkoutTable({
                       </View>
                     ) : null}
                   </WorkoutChangePulse>
+                  {completed ? (
+                    <View
+                      pointerEvents="none"
+                      accessible
+                      accessibilityRole="image"
+                      accessibilityLabel={`${exercise.name} settled`}
+                      style={{
+                        position: 'absolute',
+                        top: -7,
+                        left: -7,
+                        width: 19,
+                        height: 19,
+                        borderRadius: 10,
+                        borderWidth: 2,
+                        borderColor: colors.canvas,
+                        backgroundColor: completedColor,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Check size={12} strokeWidth={3} color={colors.canvas} />
+                    </View>
+                  ) : null}
                 </ExerciseReorderCard>
               );
             })}

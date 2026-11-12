@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.fitnessai.app",
-      "versionCode": 27,
+      "versionCode": 28,
       "adaptiveIcon": {
         "backgroundColor": "#FFB38C",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
