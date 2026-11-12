@@ -1,4 +1,5 @@
 import '../global.css';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConvexBetterAuthProvider, type AuthClient } from '@convex-dev/better-auth/react';
 import { ConvexProvider, ConvexReactClient, useConvexAuth } from 'convex/react';
 import { Stack } from 'expo-router';
@@ -62,8 +63,10 @@ export default function RootLayout() {
     BarlowCondensed: require('../../assets/fonts/BarlowCondensed-SemiBold.ttf'),
   });
   return (
-    <ThemeProvider>
-      {fontsLoaded || fontError ? <AppProviders /> : <LoadingScreen label="Getting ready…" />}
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        {fontsLoaded || fontError ? <AppProviders /> : <LoadingScreen label="Getting ready…" />}
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -83,6 +83,11 @@ export function useExerciseDrag(
     },
     setLayout(rowId: string, layout: ExerciseLayout) {
       layouts.current.set(rowId, layout);
+      // A held card can start moving while the collapse layout is still arriving.
+      if (active.current) {
+        active.current.layouts.set(rowId, layout);
+        update();
+      }
     },
     setScroll(offset: number) {
       viewport.current.offset = offset;

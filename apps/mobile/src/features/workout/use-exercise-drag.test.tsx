@@ -66,3 +66,19 @@ it('discards a stale gesture when another update replaces the draft', async () =
   expect(save).not.toHaveBeenCalled();
   expect(drag.activeId).toBeUndefined();
 });
+
+it('refreshes drag geometry when collapsing cards reports new layout during the held gesture', async () => {
+  drag.setLayout('a', { y: 0, height: 230 });
+  drag.setLayout('b', { y: 236, height: 50 });
+  drag.setLayout('c', { y: 292, height: 50 });
+  await act(() => drag.start('a', 20));
+  await act(() => {
+    drag.setLayout('a', { y: 0, height: 50 });
+    drag.setLayout('b', { y: 56, height: 50 });
+    drag.setLayout('c', { y: 112, height: 50 });
+    drag.move(60, 80);
+  });
+  expect(drag.offset('b')).toBe(-56);
+  await act(() => drag.end());
+  expect(save).toHaveBeenCalledExactlyOnceWith(['b', 'a', 'c']);
+});
