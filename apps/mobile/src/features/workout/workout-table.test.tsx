@@ -26,6 +26,7 @@ vi.mock('react-native', () => ({
     sequence: () => ({ start: motion.start, stop: motion.stop }),
   },
   Pressable: 'Pressable',
+  Modal: 'Modal',
   ScrollView: 'ScrollView',
   Text: 'Text',
   View: 'View',
@@ -36,13 +37,14 @@ vi.mock('lucide-react-native', () => ({
   ChevronDown: 'ChevronDown',
   ChevronUp: 'ChevronUp',
   List: 'List',
+  Info: 'Info',
   Trash2: 'Trash2',
   Trophy: 'Trophy',
 }));
 vi.mock('./exercise-reorder-card', () => ({ ExerciseReorderCard: 'ExerciseReorderCard' }));
 vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
 vi.mock('./exercise-records', () => ({ ExerciseRecords: 'ExerciseRecords' }));
-vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton' }));
+vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton', useThemeVariables: () => ({}) }));
 vi.mock('@/components/theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
 vi.mock('@/components/display-text', () => ({ DisplayText: 'DisplayText' }));
 
@@ -356,6 +358,44 @@ it('waits for saved baselines and combines duplicate rows for the same exercise'
 });
 
 const cards = () => renderer.root.findAllByType('ExerciseReorderCard' as never);
+it('explains the actual all-time thresholds beside settle and updates the open modal with edits', async () => {
+  const exerciseId = 'bench' as Id<'exercises'>;
+  const baseline = {
+    exerciseId,
+    trackingType: 'weight_reps',
+    volume: 1000,
+    maxSet: { weightKg: 50, reps: 7 },
+  };
+  vi.mocked(useQuery).mockReturnValue([baseline]);
+  const row = {
+    ...exercises[0],
+    exerciseId,
+    sets: [
+      { setId: 'one', weightKg: 30, reps: 10 },
+      { setId: 'two', weightKg: 50, reps: 7 },
+      { setId: 'three', weightKg: 32.5, reps: 6 },
+    ],
+  };
+  await update([row]);
+  await act(() => find('Explain achievements for Bench').props.onPress());
+  const text = () =>
+    renderer.root
+      .findAllByType('Text' as never)
+      .map((node) => node.children.filter((child) => typeof child === 'string').join(''))
+      .join('\n');
+  expect(text()).toContain('This workout: 845 kg');
+  expect(text()).toContain('All-time best: 1000 kg');
+  expect(text()).toContain('All-time best: 50 kg × 7 reps');
+  expect(text()).toContain('at least 8 reps at 50 kg');
+  expect(text()).not.toContain('Earned in this draft');
+  await act(() => find('Settle Bench').props.onPress());
+  expect(text()).not.toContain('Earned in this draft');
+  await update([{ ...row, sets: [{ setId: 'one', weightKg: 50, reps: 21 }] }], true);
+  expect(text().match(/Earned in this draft/g)).toHaveLength(2);
+  await act(() => renderer.root.findByType('Modal' as never).props.onRequestClose());
+  expect(renderer.root.findAllByType('Modal' as never)).toHaveLength(0);
+});
+
 it('collapses every exercise for staged reordering and Cancel restores the original view', async () => {
   await act(() => find('Bench, 1 set').props.onPress());
   await act(() => find('Settle Bench').props.onPress());

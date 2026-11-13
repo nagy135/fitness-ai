@@ -16,6 +16,7 @@ import { ExerciseReorderCard } from './exercise-reorder-card';
 import { useExerciseDrag } from './use-exercise-drag';
 import { moveExercise } from './exercise-reorder';
 import { ExerciseRecords } from './exercise-records';
+import { AchievementInfo } from './achievement-info';
 
 type DraftSet = WorkoutSet & { setId: string };
 interface DraftExercise {
@@ -533,7 +534,18 @@ export function WorkoutTable({
                             {exercise.notes}
                           </Text>
                         ) : null}
-                        <View className="items-end px-3 pb-2 pt-1">
+                        <View className="flex-row justify-end gap-2 px-3 pb-2 pt-1">
+                          {exercise.exerciseId ? (
+                            <AchievementInfo
+                              name={exercise.name}
+                              sets={exercises
+                                .filter((row) => row.exerciseId === exercise.exerciseId)
+                                .flatMap((row) => row.sets)}
+                              baseline={baselines?.find(
+                                (baseline) => baseline.exerciseId === exercise.exerciseId,
+                              )}
+                            />
+                          ) : null}
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`${completed ? 'Unsettle' : 'Settle'} ${exercise.name}`}
