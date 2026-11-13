@@ -11,13 +11,23 @@ const motion = vi.hoisted(() => ({
   stop: vi.fn(),
   timing: vi.fn(),
   reduced: vi.fn(async () => false),
+  measureLayout: vi.fn(),
+  reduceListeners: new Set<(reduced: boolean) => void>(),
 }));
 vi.mock('react-native', () => ({
-  AccessibilityInfo: { isReduceMotionEnabled: motion.reduced },
+  AccessibilityInfo: {
+    isReduceMotionEnabled: motion.reduced,
+    addEventListener: (_event: string, listener: (reduced: boolean) => void) => {
+      motion.reduceListeners.add(listener);
+      return { remove: () => motion.reduceListeners.delete(listener) };
+    },
+  },
+  Easing: { bezier: () => undefined },
   Animated: {
     View: 'AnimatedView',
     Value: class {
       setValue() {}
+      stopAnimation() {}
       interpolate() {
         return 1;
       }
@@ -30,6 +40,13 @@ vi.mock('react-native', () => ({
   ScrollView: 'ScrollView',
   Text: 'Text',
   View: 'View',
+}));
+vi.mock('react-native-svg', () => ({
+  default: 'Svg',
+  Circle: 'Circle',
+  Defs: 'Defs',
+  RadialGradient: 'RadialGradient',
+  Stop: 'Stop',
 }));
 vi.mock('lucide-react-native', () => ({
   Award: 'Award',
@@ -73,6 +90,8 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.mocked(useQuery).mockReturnValue(undefined);
   motion.reduced.mockResolvedValue(false);
+  motion.timing.mockReturnValue({ start: motion.start, stop: motion.stop });
+  motion.measureLayout.mockImplementation((_relative, success) => success(0, 240, 110, 44));
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
     callback();
@@ -90,8 +109,7 @@ beforeEach(async () => {
         String(element.type) === 'ScrollView'
           ? { scrollTo: motion.scrollTo }
           : {
-              measureLayout: (_relative: unknown, success: (x: number, y: number) => void) =>
-                success(0, 240),
+              measureLayout: motion.measureLayout,
             },
     });
   });
@@ -398,6 +416,33 @@ it('shows colored record comparisons beside settle and updates the open modal wi
   expect(find('Max set: 50 kg × 21 reps, above record').props.style.color).toBe('#15803d');
   await act(() => renderer.root.findByType('Modal' as never).props.onRequestClose());
   expect(renderer.root.findAllByType('Modal' as never)).toHaveLength(0);
+});
+
+it('cancels a delayed settle ripple on undo and skips motion when reduced motion changes', async () => {
+  await act(() => find('Bench, 1 set').props.onPress());
+  const pending: (() => void)[] = [];
+  motion.measureLayout.mockImplementation((_relative, success) =>
+    pending.push(() => success(160, 320, 110, 44)),
+  );
+  await act(() => find('Settle Bench').props.onPress());
+  expect(find('Unsettle Bench').props.accessibilityState.selected).toBe(true);
+  await act(() => find('Unsettle Bench').props.onPress());
+  motion.timing.mockClear();
+  await act(() => pending.forEach((finish) => finish()));
+  expect(motion.timing).not.toHaveBeenCalled();
+  pending.length = 0;
+  await act(() => find('Settle Bench').props.onPress());
+  await act(() => pending.forEach((finish) => finish()));
+  expect(motion.timing).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ duration: 580, useNativeDriver: true }),
+  );
+  await act(() => motion.reduceListeners.forEach((listener) => listener(true)));
+  await act(() => find('Unsettle Bench').props.onPress());
+  motion.timing.mockClear();
+  await act(() => find('Settle Bench').props.onPress());
+  expect(motion.timing).not.toHaveBeenCalled();
+  expect(find('Bench settled')).toBeTruthy();
 });
 
 it('collapses every exercise for staged reordering and Cancel restores the original view', async () => {
