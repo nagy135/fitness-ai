@@ -45,7 +45,9 @@ vi.mock('./exercise-reorder-card', () => ({ ExerciseReorderCard: 'ExerciseReorde
 vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
 vi.mock('./exercise-records', () => ({ ExerciseRecords: 'ExerciseRecords' }));
 vi.mock('@fitness/ui', () => ({ IconButton: 'IconButton', useThemeVariables: () => ({}) }));
-vi.mock('@/components/theme-provider', () => ({ useAppTheme: () => ({ colors: {} }) }));
+vi.mock('@/components/theme-provider', () => ({
+  useAppTheme: () => ({ colors: { danger: '#c14a4a' } }),
+}));
 vi.mock('@/components/display-text', () => ({ DisplayText: 'DisplayText' }));
 
 type Exercises = ComponentProps<typeof WorkoutTable>['exercises'];
@@ -358,7 +360,7 @@ it('waits for saved baselines and combines duplicate rows for the same exercise'
 });
 
 const cards = () => renderer.root.findAllByType('ExerciseReorderCard' as never);
-it('explains the actual all-time thresholds beside settle and updates the open modal with edits', async () => {
+it('shows colored record comparisons beside settle and updates the open modal with edits', async () => {
   const exerciseId = 'bench' as Id<'exercises'>;
   const baseline = {
     exerciseId,
@@ -383,15 +385,17 @@ it('explains the actual all-time thresholds beside settle and updates the open m
       .findAllByType('Text' as never)
       .map((node) => node.children.filter((child) => typeof child === 'string').join(''))
       .join('\n');
-  expect(text()).toContain('This workout: 845 kg');
-  expect(text()).toContain('All-time best: 1000 kg');
-  expect(text()).toContain('All-time best: 50 kg × 7 reps');
-  expect(text()).toContain('at least 8 reps at 50 kg');
-  expect(text()).not.toContain('Earned in this draft');
+  expect(text()).toContain('845 kg');
+  expect(text()).toContain('1000 kg');
+  expect(text()).toContain('50 kg × 7 reps');
+  expect(text()).not.toContain('Lift more');
+  expect(find('Volume: 845 kg, below record').props.style.color).toBe('#c14a4a');
+  expect(find('Max set: 50 kg × 7 reps, tied with record').props.style.color).toBe('#c14a4a');
   await act(() => find('Settle Bench').props.onPress());
-  expect(text()).not.toContain('Earned in this draft');
+  expect(find('Volume: 845 kg, below record').props.style.color).toBe('#c14a4a');
   await update([{ ...row, sets: [{ setId: 'one', weightKg: 50, reps: 21 }] }], true);
-  expect(text().match(/Earned in this draft/g)).toHaveLength(2);
+  expect(find('Volume: 1050 kg, above record').props.style.color).toBe('#15803d');
+  expect(find('Max set: 50 kg × 21 reps, above record').props.style.color).toBe('#15803d');
   await act(() => renderer.root.findByType('Modal' as never).props.onRequestClose());
   expect(renderer.root.findAllByType('Modal' as never)).toHaveLength(0);
 });

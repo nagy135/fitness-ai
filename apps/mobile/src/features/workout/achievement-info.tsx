@@ -22,7 +22,7 @@ export function AchievementInfo({
   baseline?: ExerciseRecordBaseline & { trackingType: TrackingType };
 }) {
   const [open, setOpen] = useState(false);
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const variables = useThemeVariables();
   const close = () => setOpen(false);
   const supported = baseline?.trackingType === 'weight_reps' || baseline?.trackingType === 'custom';
@@ -39,7 +39,7 @@ export function AchievementInfo({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Explain achievements for ${name}`}
-        accessibilityHint="Shows personal record rules and your current progress"
+        accessibilityHint="Shows your current numbers and records to beat"
         onPress={() => setOpen(true)}
         className="min-h-11 flex-row items-center gap-1.5 rounded-lg border border-line px-3 active:opacity-70 dark:border-line-dark"
       >
@@ -76,69 +76,71 @@ export function AchievementInfo({
                     accessibilityRole="progressbar"
                     className="text-sm text-muted dark:text-muted-dark"
                   >
-                    Loading saved records…
+                    Loading…
                   </Text>
                 ) : !supported ? (
                   <Text className="text-sm text-muted dark:text-muted-dark">
-                    Volume and max-set badges are available for exercises tracked with weight and
-                    reps.
+                    No weight/reps records
                   </Text>
                 ) : (
-                  <View className="gap-4">
-                    <View className="gap-1">
-                      <Text className="text-base font-semibold text-accent dark:text-accent-dark">
-                        Volume PR
+                  <View className="gap-3">
+                    <View className="flex-row gap-3">
+                      <Text className="flex-1 text-xs text-muted dark:text-muted-dark">PR</Text>
+                      <Text className="flex-1 text-right text-xs text-muted dark:text-muted-dark">
+                        Now
                       </Text>
-                      <Text className="text-sm leading-5 text-muted dark:text-muted-dark">
-                        Beat your highest total volume from any saved session, not just the previous
-                        session. Volume is weight × reps, added across all sets of this exercise.
-                      </Text>
-                      <Text className="text-sm font-medium text-ink dark:text-ink-dark">
-                        This workout: {formatNumber(current?.volume ?? 0)} kg
-                      </Text>
-                      <Text className="text-sm text-ink dark:text-ink-dark">
-                        All-time best:{' '}
-                        {baseline.volume === null
-                          ? 'No saved record'
-                          : `${formatNumber(baseline.volume)} kg`}
-                      </Text>
-                      <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
-                        {baseline.volume === null
-                          ? 'Save a workout to establish your first record.'
-                          : improvements?.volume
-                            ? 'Earned in this draft'
-                            : 'Not yet — your total must be higher than the all-time best.'}
+                      <Text className="flex-1 text-right text-xs text-muted dark:text-muted-dark">
+                        To beat
                       </Text>
                     </View>
-                    <View className="gap-1 border-t border-line pt-3 dark:border-line-dark">
-                      <Text className="text-base font-semibold text-accent dark:text-accent-dark">
-                        Max set PR
-                      </Text>
-                      <Text className="text-sm leading-5 text-muted dark:text-muted-dark">
-                        Lift more than your heaviest saved set, or do more reps at that same weight.
-                        Matching it does not count. Extra reps at a lighter weight are not tracked
-                        as a separate achievement.
-                      </Text>
-                      <Text className="text-sm font-medium text-ink dark:text-ink-dark">
-                        This workout:{' '}
-                        {current?.maxSet ? formatSet(current.maxSet) : 'No weighted sets yet'}
-                      </Text>
-                      <Text className="text-sm text-ink dark:text-ink-dark">
-                        All-time best:{' '}
-                        {baseline.maxSet ? formatSet(baseline.maxSet) : 'No saved record'}
-                      </Text>
-                      <Text className="text-sm font-semibold text-accent dark:text-accent-dark">
-                        {!baseline.maxSet
-                          ? 'Save a workout to establish your first record.'
-                          : improvements?.maxSet
-                            ? 'Earned in this draft'
-                            : `Not yet — lift over ${formatNumber(baseline.maxSet.weightKg)} kg, or do at least ${baseline.maxSet.reps + 1} reps at ${formatNumber(baseline.maxSet.weightKg)} kg.`}
-                      </Text>
-                    </View>
-                    <Text className="text-xs leading-4 text-muted dark:text-muted-dark">
-                      Both badges update as you log or edit sets. Settling an exercise only marks it
-                      complete for you.
-                    </Text>
+                    {[
+                      {
+                        label: 'Volume',
+                        value: `${formatNumber(current?.volume ?? 0)} kg`,
+                        target:
+                          baseline.volume === null ? '—' : `${formatNumber(baseline.volume)} kg`,
+                        hasRecord: baseline.volume !== null,
+                        improved: improvements?.volume,
+                        tied: current?.volume === baseline.volume,
+                      },
+                      {
+                        label: 'Max set',
+                        value: current?.maxSet ? formatSet(current.maxSet) : '—',
+                        target: baseline.maxSet ? formatSet(baseline.maxSet) : '—',
+                        hasRecord: baseline.maxSet !== null,
+                        improved: improvements?.maxSet,
+                        tied:
+                          current?.maxSet?.weightKg === baseline.maxSet?.weightKg &&
+                          current?.maxSet?.reps === baseline.maxSet?.reps,
+                      },
+                    ].map(({ label, value, target, hasRecord, improved, tied }) => (
+                      <View
+                        key={label}
+                        className="flex-row items-center gap-3 border-t border-line pt-3 dark:border-line-dark"
+                      >
+                        <Text className="flex-1 text-sm font-semibold text-ink dark:text-ink-dark">
+                          {label}
+                        </Text>
+                        <Text
+                          accessibilityLabel={`${label}: ${value}, ${!hasRecord ? 'no saved record' : improved ? 'above record' : tied ? 'tied with record' : 'below record'}`}
+                          className="flex-1 text-right text-sm font-semibold"
+                          style={{
+                            color: !hasRecord
+                              ? colors.muted
+                              : improved
+                                ? isDark
+                                  ? '#4ade80'
+                                  : '#15803d'
+                                : colors.danger,
+                          }}
+                        >
+                          {value}
+                        </Text>
+                        <Text className="flex-1 text-right text-sm text-ink dark:text-ink-dark">
+                          {target}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )}
               </ScrollView>
